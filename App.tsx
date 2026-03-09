@@ -50,7 +50,7 @@ export default function App() {
     return (
       <Animated.View style={[styles.splashContainer, { opacity: fadeAnim }]}>
         <Image
-          source={require('../assets/splash-brand.png')}
+          source={require('./assets/splash-brand.png')}
           style={styles.splashImage}
           resizeMode="contain"
         />
