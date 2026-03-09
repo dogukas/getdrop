@@ -22,7 +22,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const translateY = useRef(new Animated.Value(50)).current;
     const hideTimeout = useRef<NodeJS.Timeout | null>(null);
 
-    const showToast = useCallback(({ message, type = 'info', duration = 3000 }: ToastOptions) => {
+    const showToast = useCallback(({ message, type = 'info', duration = 4000 }: ToastOptions) => {
         // Önceki toast'u temizle
         if (hideTimeout.current) clearTimeout(hideTimeout.current);
 

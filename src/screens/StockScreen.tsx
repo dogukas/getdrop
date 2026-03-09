@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
-import { useDataStore, Product } from '../store/useDataStore';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Product } from '../types/database';
+import { useDataStore } from '../store/useDataStore';
 import { useActivityStore } from '../store/useActivityStore';
 import { useToast } from '../context/ToastContext';
 import { useAppStore } from '../store/useAppStore';
+import { SkeletonList } from '../components/SkeletonLoader';
+import { EmptyState } from '../components/EmptyState';
 
 const GREEN = '#2A7A50';
 
@@ -24,19 +28,31 @@ const FILTERS: { key: Filter; label: string }[] = [
     { key: 'ok', label: 'Normal' },
 ];
 
-export default function StockScreen() {
+type Props = NativeStackScreenProps<any, 'Stock'>;
+
+export default function StockScreen({ navigation }: Props) {
     const products = useDataStore(s => s.products);
+    const isLoading = useDataStore(s => s.isLoading);
+    const loadProducts = useDataStore(s => s.loadProducts);
     const adjustStock = useDataStore(s => s.adjustStock);
     const addLog = useActivityStore(s => s.addLog);
     const { showToast } = useToast();
-    const { user } = useAppStore();
+    const user = useAppStore(s => s.user);
     const canEdit = user?.role === 'admin' || user?.role === 'operator';
+    const isAdmin = user?.role === 'admin';
 
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<Filter>('all');
 
     const critical = products.filter(p => getStatus(p.stock, p.minStock).level === 'critical').length;
     const low = products.filter(p => getStatus(p.stock, p.minStock).level === 'low').length;
+
+    const [refreshing, setRefreshing] = useState(false);
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        await loadProducts();
+        setRefreshing(false);
+    }, []);
 
     const filtered = products.filter((p: Product) => {
         const st = getStatus(p.stock, p.minStock);
@@ -59,9 +75,9 @@ export default function StockScreen() {
                 { text: 'Vazgeç', style: 'cancel' },
                 {
                     text: 'Onayla',
-                    onPress: () => {
-                        adjustStock(product.sku, delta);
-                        addLog({
+                    onPress: async () => {
+                        await adjustStock(product.sku, delta);
+                        await addLog({
                             level: delta > 0 ? 'success' : 'warning',
                             title: `Stok Düzeltme: ${product.name}`,
                             description: `${label}. Yeni stok: ${Math.max(0, product.stock + delta)} adet.`,
@@ -81,6 +97,16 @@ export default function StockScreen() {
 
     return (
         <View style={s.root}>
+            {/* Admin FAB - Yeni Ürün Ekle */}
+            {isAdmin && (
+                <TouchableOpacity
+                    style={{ position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#2A7A50', alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: '#2A7A50', shadowOpacity: 0.4, shadowRadius: 10, zIndex: 99 }}
+                    onPress={() => navigation.navigate('CreateProduct')}
+                    activeOpacity={0.85}
+                >
+                    <Icon source="plus" size={26} color="#FFF" />
+                </TouchableOpacity>
+            )}
 
             {/* Özet Banneri */}
             <View style={s.summaryBar}>
@@ -111,46 +137,60 @@ export default function StockScreen() {
             </ScrollView>
 
             {/* Liste */}
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.list}>
-                {filtered.map((product: Product) => {
-                    const st = getStatus(product.stock, product.minStock);
-                    const pct = Math.min(product.stock / Math.max(product.minStock, 1), 1);
-                    return (
-                        <View key={product.id} style={s.card}>
-                            <View style={s.cardTop}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={s.itemName}>{product.name}</Text>
-                                    <Text style={s.itemSku}>{product.sku}</Text>
-                                </View>
-                                <View style={[s.badge, { backgroundColor: `${st.color}18` }]}>
-                                    <Text style={[s.badgeText, { color: st.color }]}>{st.label}</Text>
-                                </View>
-                            </View>
-
-                            {/* Stok bar */}
-                            <View style={s.barBg}>
-                                <View style={[s.barFill, { width: `${pct * 100}%`, backgroundColor: st.color }]} />
-                            </View>
-
-                            <View style={s.cardBottom}>
-                                <Text style={s.qtyText}>
-                                    <Text style={{ fontWeight: '800', color: st.color, fontSize: 17 }}>{product.stock}</Text>
-                                    <Text style={s.minText}> / {product.minStock} {product.unit} (min)</Text>
-                                </Text>
-                                {canEdit && (
-                                    <View style={s.adjustRow}>
-                                        <TouchableOpacity style={s.adjBtn} onPress={() => handleAdjust(product, -10)} activeOpacity={0.7}>
-                                            <Text style={s.adjBtnText}>-10</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={[s.adjBtn, s.adjBtnPos]} onPress={() => handleAdjust(product, 10)} activeOpacity={0.7}>
-                                            <Text style={[s.adjBtnText, { color: GREEN }]}>+10</Text>
-                                        </TouchableOpacity>
+            <ScrollView
+                contentContainerStyle={s.list}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2A7A50" />}
+            >
+                {isLoading ? (
+                    <SkeletonList count={6} />
+                ) : filtered.length === 0 ? (
+                    <EmptyState
+                        icon="package-variant"
+                        title="Ürün Bulunamadı"
+                        description={search || filter !== 'all' ? "Arama veya filtreye uygun sonuç yok." : "Henüz hiç ürün kaydı bulunmuyor."}
+                    />
+                ) : (
+                    filtered.map((product: Product) => {
+                        const st = getStatus(product.stock, product.minStock);
+                        const pct = Math.min(product.stock / Math.max(product.minStock, 1), 1);
+                        return (
+                            <View key={product.id} style={s.card}>
+                                <View style={s.cardTop}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={s.itemName}>{product.name}</Text>
+                                        <Text style={s.itemSku}>{product.sku}</Text>
                                     </View>
-                                )}
+                                    <View style={[s.badge, { backgroundColor: `${st.color}18` }]}>
+                                        <Text style={[s.badgeText, { color: st.color }]}>{st.label}</Text>
+                                    </View>
+                                </View>
+
+                                {/* Stok bar */}
+                                <View style={s.barBg}>
+                                    <View style={[s.barFill, { width: `${pct * 100}%`, backgroundColor: st.color }]} />
+                                </View>
+
+                                <View style={s.cardBottom}>
+                                    <Text style={s.qtyText}>
+                                        <Text style={{ fontWeight: '800', color: st.color, fontSize: 17 }}>{product.stock}</Text>
+                                        <Text style={s.minText}> / {product.minStock} {product.unit} (min)</Text>
+                                    </Text>
+                                    {canEdit && (
+                                        <View style={s.adjustRow}>
+                                            <TouchableOpacity style={s.adjBtn} onPress={() => handleAdjust(product, -10)} activeOpacity={0.7}>
+                                                <Text style={s.adjBtnText}>-10</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[s.adjBtn, s.adjBtnPos]} onPress={() => handleAdjust(product, 10)} activeOpacity={0.7}>
+                                                <Text style={[s.adjBtnText, { color: GREEN }]}>+10</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
                             </View>
-                        </View>
-                    );
-                })}
+                        );
+                    })
+                )}
             </ScrollView>
         </View>
     );

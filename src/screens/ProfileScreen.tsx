@@ -2,10 +2,15 @@ import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, Avatar, List, Switch, Divider, useTheme } from 'react-native-paper';
 import { useAppStore } from '../store/useAppStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProfileScreen() {
     const theme = useTheme();
-    const { user, isDarkMode, toggleTheme, setUser } = useAppStore();
+    const { user, isDarkMode, toggleTheme } = useAppStore(
+        useShallow(s => ({ user: s.user, isDarkMode: s.isDarkMode, toggleTheme: s.toggleTheme }))
+    );
+    const { logout } = useAuth();
 
     return (
         <ScrollView
@@ -49,7 +54,7 @@ export default function ProfileScreen() {
                 title="Çıkış Yap"
                 titleStyle={{ color: theme.colors.error }}
                 left={(props) => <List.Icon {...props} icon="logout" color={theme.colors.error} />}
-                onPress={() => setUser(null)}
+                onPress={logout}
             />
         </ScrollView>
     );

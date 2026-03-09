@@ -7,7 +7,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/context/ToastContext';
 
 export default function App() {
-  const { isDarkMode } = useAppStore();
+  const isDarkMode = useAppStore(s => s.isDarkMode);
   const theme = isDarkMode ? darkTheme : lightTheme;
 
   return (

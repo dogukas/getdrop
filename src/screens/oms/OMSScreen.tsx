@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View, ScrollView, StyleSheet, TouchableOpacity,
     TextInput, StatusBar, RefreshControl,
@@ -6,7 +6,10 @@ import {
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useDataStore } from '../../store/useDataStore';
+import { useAppStore } from '../../store/useAppStore';
 import { Order, OrderStatus } from '../../types';
+import { SkeletonList } from '../../components/SkeletonLoader';
+import { EmptyState } from '../../components/EmptyState';
 
 const GREEN = '#2A7A50';
 
@@ -29,13 +32,18 @@ type Props = NativeStackScreenProps<any, 'OMS'>;
 
 export default function OMSScreen({ navigation }: Props) {
     const orders = useDataStore(s => s.orders);
+    const isLoading = useDataStore(s => s.isLoading);
+    const loadOrders = useDataStore(s => s.loadOrders);
+    const user = useAppStore(s => s.user);
+    const isAdmin = user?.role === 'admin';
     const [activeFilter, setActiveFilter] = useState<OrderStatus | 'all'>('all');
     const [search, setSearch] = useState('');
     const [refreshing, setRefreshing] = useState(false);
 
-    const onRefresh = () => {
+    const onRefresh = async () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1200);
+        await loadOrders();
+        setRefreshing(false);
     };
 
     const filtered = orders.filter((o: Order) => {
@@ -48,6 +56,12 @@ export default function OMSScreen({ navigation }: Props) {
     return (
         <View style={s.root}>
             <StatusBar barStyle="dark-content" />
+            {/* Admin FAB */}
+            {isAdmin && (
+                <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateOrder')} activeOpacity={0.85}>
+                    <Icon source="plus" size={26} color="#FFF" />
+                </TouchableOpacity>
+            )}
 
             {/* Arama */}
             <View style={s.searchBox}>
@@ -89,11 +103,14 @@ export default function OMSScreen({ navigation }: Props) {
                 contentContainerStyle={s.list}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={GREEN} />}
             >
-                {filtered.length === 0 ? (
-                    <View style={s.empty}>
-                        <Icon source="clipboard-off-outline" size={48} color="#CCC" />
-                        <Text style={s.emptyText}>Sonuç bulunamadı</Text>
-                    </View>
+                {isLoading ? (
+                    <SkeletonList count={4} />
+                ) : filtered.length === 0 ? (
+                    <EmptyState
+                        icon="clipboard-off-outline"
+                        title="Sipariş Bulunamadı"
+                        description={search || activeFilter !== 'all' ? "Arama veya filtreye uygun sonuç yok." : "Henüz hiç sipariş kaydı bulunmuyor."}
+                    />
                 ) : (
                     filtered.map((order) => <OrderCard key={order.id} order={order} onPress={() => navigation.push('OMSDetail', { order })} />)
                 )}
@@ -165,6 +182,7 @@ const s = StyleSheet.create({
     footerItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     footerText: { fontSize: 12, color: '#888' },
     totalText: { marginLeft: 'auto', fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
-    noteRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, backgroundColor: `${GREEN}0D`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+    noteRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, backgroundColor: `${GREEN} 0D`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
     noteText: { fontSize: 11, color: GREEN, flex: 1 },
+    fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: GREEN, shadowOpacity: 0.4, shadowRadius: 10, zIndex: 99 },
 });

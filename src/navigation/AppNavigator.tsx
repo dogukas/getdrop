@@ -22,6 +22,10 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import StockScreen from '../screens/StockScreen';
 import ReportsScreen from '../screens/ReportsScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
+import CreateOrderScreen from '../screens/oms/CreateOrderScreen';
+import CreateTransferScreen from '../screens/transfer/CreateTransferScreen';
+import CreateShipmentScreen from '../screens/sevkiyat/CreateShipmentScreen';
+import CreateProductScreen from '../screens/StockCreateProductScreen';
 
 import { useAuth } from '../context/AuthContext';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
@@ -121,9 +125,10 @@ function MainAppLayout({
                             animation: 'slide_from_right',
                             headerStyle: { backgroundColor: '#FFFFFF' },
                             headerTitleStyle: { color: '#1A1A1A', fontWeight: '700', fontSize: 16 },
+                            headerTintColor: '#1A1A1A',
                             headerShadowVisible: false,
                             headerLeft: () => <HamburgerButton />,
-                            contentStyle: { backgroundColor: '#F5F5F5' },
+                            contentStyle: { backgroundColor: '#F4F6F8' },
                         }}
                     >
                         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Ana Sayfa', headerLeft: () => <HamburgerButton /> }} />
@@ -138,6 +143,11 @@ function MainAppLayout({
                         <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Bildirimler' }} />
                         <Stack.Screen name="Stock" component={StockScreen} options={{ title: 'Stok Takip' }} />
                         <Stack.Screen name="Reports" component={ReportsScreen} options={{ title: 'Raporlar & Analiz' }} />
+                        {/* Admin-only create screens */}
+                        <Stack.Screen name="CreateOrder" component={CreateOrderScreen} options={{ title: 'Yeni Sipariş', headerShown: true, headerBackTitle: 'Geri' }} />
+                        <Stack.Screen name="CreateTransfer" component={CreateTransferScreen} options={{ title: 'Yeni Transfer', headerShown: true, headerBackTitle: 'Geri' }} />
+                        <Stack.Screen name="CreateShipment" component={CreateShipmentScreen} options={{ title: 'Yeni Sevkiyat', headerShown: true, headerBackTitle: 'Geri' }} />
+                        <Stack.Screen name="CreateProduct" component={CreateProductScreen} options={{ title: 'Ürün Ekle', headerShown: true, headerBackTitle: 'Geri' }} />
                     </Stack.Navigator>
 
                     {/* Overlay karartma: derinlik hissi */}

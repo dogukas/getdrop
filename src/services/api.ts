@@ -33,9 +33,9 @@ api.interceptors.response.use(
             const status = error.response.status;
 
             if (status === 401) {
-                // Token süresi dolmuş veya geçersiz. 
-                console.log('[API] 401 Unauthorized - Kulllanıcıyı dışarı at');
-                // useAppStore.getState().setUser(null); // Oturumu sonlandır
+                // Token süresi dolmuş veya geçersiz — oturumu sonlandır
+                useAppStore.getState().setUser(null);
+                console.log('[API] 401 Unauthorized - Oturum sonlandırıldı');
             } else if (status === 403) {
                 // Yetki hatası
                 console.log('[API] 403 Forbidden - Bu işlemi yapmaya yetkiniz yok');

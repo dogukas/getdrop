@@ -1,50 +1,101 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
+import { useDataStore } from '../store/useDataStore';
+import { useActivityStore } from '../store/useActivityStore';
+import { fetchBranches } from '../services/branchService';
 
-// Kullanıcı bilgilerini store'da tutuyoruz. AuthContext ise oturum durumunu (Token vb.) yönetecek.
 interface AuthContextData {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (email: string, pass: string) => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const { user, setUser } = useAppStore();
+    const setUser = useAppStore(s => s.setUser);
+    const setBranches = useAppStore(s => s.setBranches);
+    const setActiveBranch = useAppStore(s => s.setActiveBranch);
+    const user = useAppStore(s => s.user);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Uygulama açılışında lokalden token veya user bilgisi var mı diye bakılıyormuş gibi simüle ediyoruz
+    // Uygulama açılışında mevcut oturumu kontrol et
     useEffect(() => {
-        // Gerçekte: AsyncStorage.getItem('token') olurdu.
-        const bootstrapAsync = async () => {
-            setTimeout(() => setIsLoading(false), 800);
-        };
-        bootstrapAsync();
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user) {
+                loadUserProfile(session.user.id);
+            } else {
+                setIsLoading(false);
+            }
+        });
+
+        // Auth durum değişikliklerini dinle
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (_event, session) => {
+                if (session?.user) {
+                    await loadUserProfile(session.user.id);
+                } else {
+                    setUser(null);
+                    setIsLoading(false);
+                }
+            }
+        );
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    const login = async (email: string, pass: string): Promise<void> => {
-        // API mock simulasyonu
-        return new Promise<void>((resolve, reject) => {
-            setTimeout(() => {
-                if (email === 'admin@depo.com' && pass === '1234') {
-                    setUser({ name: 'Ahmet Yılmaz', email, role: 'admin' });
-                    resolve();
-                } else if (email === 'op@depo.com' && pass === '1234') {
-                    setUser({ name: 'Mehmet Sorumlu', email, role: 'operator' });
-                    resolve();
-                } else if (email === 'misafir@depo.com' && pass === '1234') {
-                    setUser({ name: 'Ayşe Gözlemci', email, role: 'viewer' });
-                    resolve();
-                } else {
-                    reject('E-posta veya şifre hatalı');
-                }
-            }, 1000); // 1sn gecikme ile ağ isteği hissi
-        });
+    // Profil + branch yükle
+    const loadUserProfile = async (userId: string) => {
+        try {
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (error || !profile) {
+                console.error('[Auth] Profil bulunamadı:', error);
+                setIsLoading(false);
+                return;
+            }
+
+            setUser({
+                id: profile.id,
+                name: profile.name,
+                email: profile.email,
+                role: profile.role,
+                branchId: profile.branch_id,
+            });
+
+            // Branch'leri yükle
+            const branches = await fetchBranches();
+            setBranches(branches);
+            const activeBranch = profile.branch_id
+                ? branches.find(b => b.id === profile.branch_id) ?? (branches[0] || null)
+                : (branches[0] || null);
+            if (activeBranch) setActiveBranch(activeBranch);
+
+            // Veri yüklemeyi başlat
+            await Promise.all([
+                useDataStore.getState().loadAll(),
+                useActivityStore.getState().loadLogs(),
+            ]);
+        } catch (e) {
+            console.error('[Auth] loadUserProfile error:', e);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const logout = () => {
+    const login = async (email: string, pass: string): Promise<void> => {
+        const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) throw error.message;
+    };
+
+    const logout = async (): Promise<void> => {
+        await supabase.auth.signOut();
         setUser(null);
     };
 

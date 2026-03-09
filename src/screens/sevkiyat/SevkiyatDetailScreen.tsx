@@ -23,7 +23,7 @@ export default function SevkiyatDetailScreen({ route }: Props) {
     const partialAcceptShipment = useDataStore(s => s.partialAcceptShipment);
 
     const { showToast } = useToast();
-    const { user } = useAppStore();
+    const user = useAppStore(s => s.user);
     const [loading, setLoading] = useState(false);
 
     const [acceptedQtys, setAcceptedQtys] = useState<Record<string, string>>(
@@ -43,11 +43,11 @@ export default function SevkiyatDetailScreen({ route }: Props) {
             { text: 'Vazgeç', style: 'cancel' },
             {
                 text: 'Onayla',
-                onPress: () => {
+                onPress: async () => {
                     setLoading(true);
-                    setTimeout(() => {
-                        acceptShipment(shipment.id);
-                        addLog({
+                    try {
+                        await acceptShipment(shipment.id);
+                        await addLog({
                             level: 'success',
                             title: `Sevkiyat Kabul: ${shipment.shipmentNo}`,
                             description: `${shipment.supplier} sevkiyatı tam kabul edildi. Stoklar güncellendi.`,
@@ -56,9 +56,12 @@ export default function SevkiyatDetailScreen({ route }: Props) {
                             entityNo: shipment.shipmentNo,
                             user: user?.name,
                         });
-                        setLoading(false);
                         showToast({ message: '✅ Tüm ürünler kabul edildi, stoklar güncellendi!', type: 'success' });
-                    }, 1500);
+                    } catch {
+                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } finally {
+                        setLoading(false);
+                    }
                 },
             },
         ]);
@@ -76,22 +79,25 @@ export default function SevkiyatDetailScreen({ route }: Props) {
             { text: 'Vazgeç', style: 'cancel' },
             {
                 text: 'Onayla',
-                onPress: () => {
+                onPress: async () => {
                     setLoading(true);
-                    setTimeout(() => {
-                        partialAcceptShipment(shipment.id, entries);
-                        addLog({
+                    try {
+                        await partialAcceptShipment(shipment.id, entries);
+                        await addLog({
                             level: 'warning',
                             title: `Kısmi Kabul: ${shipment.shipmentNo}`,
-                            description: `${shipment.supplier} − Başlangıçta beklenen bazı kalemler eksik kabul edildi.`,
+                            description: `${shipment.supplier} − Bazı kalemler eksik kabul edildi.`,
                             module: 'Sevkiyat',
                             entityId: shipment.id,
                             entityNo: shipment.shipmentNo,
                             user: user?.name,
                         });
+                        showToast({ message: hasPartial ? '📦 Kısmi kabul tamamlandı.' : '✅ Tam kabul edildi.', type: 'info' });
+                    } catch {
+                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } finally {
                         setLoading(false);
-                        showToast({ message: hasPartial ? '📦 Kısmi kabul tamamlandı, stoklar güncellendi.' : '✅ Tam kabul edildi, stoklar güncellendi.', type: 'info' });
-                    }, 1500);
+                    }
                 },
             },
         ]);
@@ -102,11 +108,11 @@ export default function SevkiyatDetailScreen({ route }: Props) {
             { text: 'Vazgeç', style: 'cancel' },
             {
                 text: 'Reddet', style: 'destructive',
-                onPress: () => {
+                onPress: async () => {
                     setLoading(true);
-                    setTimeout(() => {
-                        rejectShipment(shipment.id);
-                        addLog({
+                    try {
+                        await rejectShipment(shipment.id);
+                        await addLog({
                             level: 'error',
                             title: `Sevkiyat Ret: ${shipment.shipmentNo}`,
                             description: `${shipment.supplier} sevkiyatı reddedildi.`,
@@ -115,9 +121,12 @@ export default function SevkiyatDetailScreen({ route }: Props) {
                             entityNo: shipment.shipmentNo,
                             user: user?.name,
                         });
-                        setLoading(false);
                         showToast({ message: '❌ Sevkiyat reddedildi.', type: 'error' });
-                    }, 1000);
+                    } catch {
+                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } finally {
+                        setLoading(false);
+                    }
                 },
             },
         ]);

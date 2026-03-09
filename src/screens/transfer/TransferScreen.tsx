@@ -3,7 +3,10 @@ import { View, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from '
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useDataStore } from '../../store/useDataStore';
+import { useAppStore } from '../../store/useAppStore';
 import { Transfer, TransferStatus } from '../../types';
+import { SkeletonList } from '../../components/SkeletonLoader';
+import { EmptyState } from '../../components/EmptyState';
 
 const PURPLE = '#6C63FF';
 
@@ -26,12 +29,17 @@ type Props = NativeStackScreenProps<any, 'Transfer'>;
 
 export default function TransferScreen({ navigation }: Props) {
     const transfers = useDataStore(s => s.transfers);
+    const isLoading = useDataStore(s => s.isLoading);
+    const loadTransfers = useDataStore(s => s.loadTransfers);
+    const user = useAppStore(s => s.user);
+    const isAdmin = user?.role === 'admin';
     const [activeFilter, setActiveFilter] = useState<TransferStatus | 'all'>('all');
     const [refreshing, setRefreshing] = useState(false);
 
-    const onRefresh = useCallback(() => {
+    const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        setTimeout(() => { setRefreshing(false); }, 1200);
+        await loadTransfers();
+        setRefreshing(false);
     }, []);
 
     const filtered = transfers.filter(
@@ -40,6 +48,12 @@ export default function TransferScreen({ navigation }: Props) {
 
     return (
         <View style={s.root}>
+            {/* Admin FAB */}
+            {isAdmin && (
+                <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateTransfer')} activeOpacity={0.85}>
+                    <Icon source="plus" size={26} color="#FFF" />
+                </TouchableOpacity>
+            )}
             {/* Filtreler */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
                 style={s.filterBar} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
@@ -62,9 +76,19 @@ export default function TransferScreen({ navigation }: Props) {
                 contentContainerStyle={s.list}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PURPLE} />}
             >
-                {filtered.map((t) => (
-                    <TransferCard key={t.id} transfer={t} onPress={() => navigation.push('TransferDetail', { transfer: t })} />
-                ))}
+                {isLoading ? (
+                    <SkeletonList count={4} />
+                ) : filtered.length === 0 ? (
+                    <EmptyState
+                        icon="swap-horizontal"
+                        title="Transfer Bulunamadı"
+                        description={activeFilter !== 'all' ? "Filtreye uygun transfer yok." : "Henüz hiç depo transfer kaydı yok."}
+                    />
+                ) : (
+                    filtered.map((t) => (
+                        <TransferCard key={t.id} transfer={t} onPress={() => navigation.push('TransferDetail', { transfer: t })} />
+                    ))
+                )}
             </ScrollView>
         </View>
     );
@@ -139,4 +163,5 @@ const s = StyleSheet.create({
     footText: { fontSize: 12, color: '#888' },
     noteRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, backgroundColor: '#6C63FF10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
     noteText: { fontSize: 11, color: PURPLE, flex: 1 },
+    fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: PURPLE, shadowOpacity: 0.4, shadowRadius: 10, zIndex: 99 },
 });

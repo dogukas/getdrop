@@ -1,79 +1,54 @@
 import { create } from 'zustand';
+import { ActivityLog, LogLevel, LogModule } from '../types/database';
+import { insertActivityLog, fetchActivityLogs } from '../services/activityService';
+import { useAppStore } from './useAppStore';
 
-// ─── Log Kaydı Tipi ─────────────────────────────────────────────────────────
-export type LogLevel = 'success' | 'warning' | 'error' | 'info';
-
-export interface ActivityLog {
-    id: string;
-    timestamp: Date;
-    level: LogLevel;
-    title: string;
-    description: string;
-    module: 'OMS' | 'Transfer' | 'Sevkiyat' | 'Stok' | 'Sistem';
-    entityId?: string;
-    entityNo?: string;
-    user?: string;
-}
-
-// ─── Store ─────────────────────────────────────────────────────────────────
 interface ActivityState {
     logs: ActivityLog[];
-    addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void;
+    addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'> & { branchId?: string }) => Promise<void>;
+    loadLogs: () => Promise<void>;
     clearLogs: () => void;
 }
 
-let logIdCounter = 100;
-
-// Başlangıç verisi — Sisteme hoş geldiniz mesajları
-const INITIAL_LOGS: ActivityLog[] = [
-    {
-        id: 'init-1',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-        level: 'info',
-        title: 'Sistem Başlatıldı',
-        description: 'DepoSaaS v1.0.0 aktif. Tüm modüller hazır.',
-        module: 'Sistem',
-    },
-    {
-        id: 'init-2',
-        timestamp: new Date(Date.now() - 1000 * 60 * 45),
-        level: 'warning',
-        title: 'Kritik Stok Uyarısı',
-        description: 'Fırın X500 stoğu minimum seviyenin altına düştü (5 adet).',
-        module: 'Stok',
-        entityId: 'p3',
-    },
-    {
-        id: 'init-3',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-        level: 'info',
-        title: 'Sevkiyat Bekleniyor',
-        description: 'SHP-2024-001 — Arçelik Tedarik tarafından kamyon yola çıktı.',
-        module: 'Sevkiyat',
-        entityNo: 'SHP-2024-001',
-    },
-    {
-        id: 'init-4',
-        timestamp: new Date(Date.now() - 1000 * 60 * 10),
-        level: 'warning',
-        title: 'Transfer Bekliyor',
-        description: 'TRF-2024-001 Ankara\'ya yönelik transfer henüz onaylanmadı.',
-        module: 'Transfer',
-        entityNo: 'TRF-2024-001',
-    },
-];
-
 export const useActivityStore = create<ActivityState>((set) => ({
-    logs: INITIAL_LOGS,
+    logs: [],
 
-    addLog: (log) => set(state => {
+    loadLogs: async () => {
+        try {
+            const logs = await fetchActivityLogs(50);
+            set({ logs });
+        } catch (e) {
+            console.error('[ActivityStore] loadLogs error:', e);
+        }
+    },
+
+    addLog: async (log) => {
         const newLog: ActivityLog = {
             ...log,
-            id: `log-${++logIdCounter}`,
+            id: `local-${Date.now()}`,
             timestamp: new Date(),
         };
-        return { logs: [newLog, ...state.logs].slice(0, 100) }; // max 100 kayıt
-    }),
+
+        // Optimistic update
+        set(s => ({ logs: [newLog, ...s.logs].slice(0, 100) }));
+
+        // Bildirim sayacı artır
+        useAppStore.getState().setUnreadCount(
+            useAppStore.getState().unreadCount + 1
+        );
+
+        // Supabase'e yaz
+        await insertActivityLog({
+            level: log.level,
+            title: log.title,
+            description: log.description,
+            module: log.module,
+            entityId: log.entityId,
+            entityNo: log.entityNo,
+            user: log.user,
+            branchId: log.branchId,
+        });
+    },
 
     clearLogs: () => set({ logs: [] }),
 }));

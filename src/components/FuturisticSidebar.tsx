@@ -5,7 +5,10 @@ import {
 } from 'react-native';
 import { Text, Icon, Portal } from 'react-native-paper';
 import { useSidebar } from '../context/SidebarContext';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore, ROLE_LABELS } from '../store/useAppStore';
+import { useDataStore } from '../store/useDataStore';
+import { useAuth } from '../context/AuthContext';
 import { navRef } from '../navigation/AppNavigator';
 
 const { width, height } = Dimensions.get('window');
@@ -26,34 +29,7 @@ interface MenuGroup {
     items: MenuItem[];
 }
 
-// ── Menü yapısı ──────────────────────────────────────────
-function buildMenu(unread: number): MenuGroup[] {
-    return [
-        {
-            title: 'OPERASYONLAR',
-            items: [
-                { key: 'Home', label: 'Dashboard', icon: 'view-dashboard-outline', screen: 'Home' },
-                { key: 'OMS', label: 'OMS', icon: 'clipboard-list-outline', screen: 'OMS', badge: 8, badgeColor: GREEN },
-                { key: 'Transfer', label: 'Transfer Merkezi', icon: 'swap-horizontal-bold', screen: 'Transfer', badge: 3, badgeColor: '#6C63FF' },
-                { key: 'Sevkiyat', label: 'Sevkiyat Kabul', icon: 'truck-check-outline', screen: 'Sevkiyat', badge: 2, badgeColor: '#E8A020' },
-            ],
-        },
-        {
-            title: 'STOK & DEPO',
-            items: [
-                { key: 'Stock', label: 'Stok Takip', icon: 'package-variant-closed-check', screen: 'Stock' },
-                { key: 'Warehouse', label: 'Depo Yönetimi', icon: 'warehouse', screen: 'Warehouse' },
-            ],
-        },
-        {
-            title: 'ANALİZ',
-            items: [
-                { key: 'Reports', label: 'Raporlar', icon: 'chart-bar', screen: 'Reports' },
-                { key: 'Alerts', label: 'Bildirimler', icon: 'bell-outline', screen: 'Notifications', badge: unread, badgeColor: '#E05C5C' },
-            ],
-        },
-    ];
-}
+// ── Menü yapısı artık bileşen içinde canlı veriyle oluşturuluyor
 
 // ── Props ─────────────────────────────────────────────────
 interface Props {
@@ -64,10 +40,61 @@ interface Props {
 // ── Sidebar Bileşeni ──────────────────────────────────────
 export default function SidebarPanel({ currentRoute, onNavigate }: Props) {
     const { isOpen, closeSidebar } = useSidebar();
-    const { user, isDarkMode, toggleTheme, unreadCount, branches, activeBranch, setActiveBranch } = useAppStore();
-    const [branchModalOpen, setBranchModalOpen] = useState(false);
+    const { logout } = useAuth();
+    const { user, isDarkMode, toggleTheme, unreadCount, branches, activeBranch, setActiveBranch } = useAppStore(
+        useShallow(s => ({
+            user: s.user,
+            isDarkMode: s.isDarkMode,
+            toggleTheme: s.toggleTheme,
+            unreadCount: s.unreadCount,
+            branches: s.branches,
+            activeBranch: s.activeBranch,
+            setActiveBranch: s.setActiveBranch,
+        }))
+    );
 
-    const menuGroups = buildMenu(unreadCount);
+    // ── Canlı badge sayıları (store'dan reaktif) ─────────────
+    const { orders, transfers, shipments, products } = useDataStore(
+        useShallow(s => ({
+            orders: s.orders,
+            transfers: s.transfers,
+            shipments: s.shipments,
+            products: s.products,
+        }))
+    );
+
+    const omsBadge = orders.filter(o => o.status === 'pending' || o.status === 'processing').length;
+    const transferBadge = transfers.filter(t => t.status === 'pending' || t.status === 'in_transit').length;
+    const sevkiyatBadge = shipments.filter(s => s.status === 'expected').length;
+    const criticalStockBadge = products.filter(p => p.stock < p.minStock).length;
+
+    const menuGroups: MenuGroup[] = [
+        {
+            title: 'OPERASYONLAR',
+            items: [
+                { key: 'Home', label: 'Dashboard', icon: 'view-dashboard-outline', screen: 'Home' },
+                { key: 'OMS', label: 'OMS', icon: 'clipboard-list-outline', screen: 'OMS', badge: omsBadge, badgeColor: GREEN },
+                { key: 'Transfer', label: 'Transfer Merkezi', icon: 'swap-horizontal-bold', screen: 'Transfer', badge: transferBadge, badgeColor: '#6C63FF' },
+                { key: 'Sevkiyat', label: 'Sevkiyat Kabul', icon: 'truck-check-outline', screen: 'Sevkiyat', badge: sevkiyatBadge, badgeColor: '#E8A020' },
+            ],
+        },
+        {
+            title: 'STOK & DEPO',
+            items: [
+                { key: 'Stock', label: 'Stok Takip', icon: 'package-variant-closed-check', screen: 'Stock', badge: criticalStockBadge, badgeColor: '#E05C5C' },
+                { key: 'Warehouse', label: 'Depo Yönetimi', icon: 'warehouse', screen: 'Warehouse' },
+            ],
+        },
+        {
+            title: 'ANALİZ',
+            items: [
+                { key: 'Reports', label: 'Raporlar', icon: 'chart-bar', screen: 'Reports' },
+                { key: 'Alerts', label: 'Bildirimler', icon: 'bell-outline', screen: 'Notifications', badge: unreadCount, badgeColor: '#E05C5C' },
+            ],
+        },
+    ];
+
+    const [branchModalOpen, setBranchModalOpen] = useState(false);
 
     function navigate(screen?: string) {
         if (!screen) return;
@@ -180,7 +207,7 @@ export default function SidebarPanel({ currentRoute, onNavigate }: Props) {
                     </TouchableOpacity>
 
                     {/* Çıkış */}
-                    <TouchableOpacity style={[s.menuItem, { marginTop: 4 }]} onPress={closeSidebar} activeOpacity={0.7}>
+                    <TouchableOpacity style={[s.menuItem, { marginTop: 4 }]} onPress={() => { closeSidebar(); logout(); }} activeOpacity={0.7}>
                         <View style={[s.iconBox, { backgroundColor: 'rgba(224,92,92,0.2)' }]}>
                             <Icon source="logout" size={19} color="#E05C5C" />
                         </View>

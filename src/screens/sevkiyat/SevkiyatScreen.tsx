@@ -3,7 +3,10 @@ import { View, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from '
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useDataStore } from '../../store/useDataStore';
+import { useAppStore } from '../../store/useAppStore';
 import { Shipment, ShipmentStatus } from '../../types';
+import { SkeletonList } from '../../components/SkeletonLoader';
+import { EmptyState } from '../../components/EmptyState';
 
 const ORANGE = '#E8A020';
 
@@ -26,12 +29,17 @@ type Props = NativeStackScreenProps<any, 'Sevkiyat'>;
 
 export default function SevkiyatScreen({ navigation }: Props) {
     const shipments = useDataStore(s => s.shipments);
+    const isLoading = useDataStore(s => s.isLoading);
+    const loadShipments = useDataStore(s => s.loadShipments);
+    const user = useAppStore(s => s.user);
+    const isAdmin = user?.role === 'admin';
     const [activeFilter, setActiveFilter] = useState<ShipmentStatus | 'all'>('all');
     const [refreshing, setRefreshing] = useState(false);
 
-    const onRefresh = useCallback(() => {
+    const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1200);
+        await loadShipments();
+        setRefreshing(false);
     }, []);
 
     const filtered = shipments.filter(
@@ -39,7 +47,13 @@ export default function SevkiyatScreen({ navigation }: Props) {
     );
 
     return (
-        <View style={s.root}>
+        <View style={{ ...s.root }}>
+            {/* Admin FAB */}
+            {isAdmin && (
+                <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateShipment')} activeOpacity={0.85}>
+                    <Icon source="plus" size={26} color="#FFF" />
+                </TouchableOpacity>
+            )}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
                 style={s.filterBar} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
                 {FILTERS.map((f) => {
@@ -58,10 +72,19 @@ export default function SevkiyatScreen({ navigation }: Props) {
                 contentContainerStyle={s.list}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ORANGE} />}
             >
-                {filtered.map((sh) => (
-                    <ShipmentCard key={sh.id} shipment={sh}
-                        onPress={() => navigation.push('SevkiyatDetail', { shipment: sh })} />
-                ))}
+                {isLoading ? (
+                    <SkeletonList count={4} />
+                ) : filtered.length === 0 ? (
+                    <EmptyState
+                        icon="truck-off-outline"
+                        title="Sevkiyat Bulunamadı"
+                        description={activeFilter !== 'all' ? "Filtreye uygun sevkiyat yok." : "Henüz hiç sevkiyat kaydı yok."}
+                    />
+                ) : (
+                    filtered.map((s) => (
+                        <ShipmentCard key={s.id} shipment={s} onPress={() => navigation.push('SevkiyatDetail', { shipment: s })} />
+                    ))
+                )}
             </ScrollView>
         </View>
     );
@@ -135,4 +158,5 @@ const s = StyleSheet.create({
     qtyNum: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
     qtyLbl: { fontSize: 10, color: '#888', marginTop: 2 },
     qtyDiv: { width: 1, backgroundColor: '#E0E0E0', marginHorizontal: 4 },
+    fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: ORANGE, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: ORANGE, shadowOpacity: 0.4, shadowRadius: 10, zIndex: 99 },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -33,8 +33,12 @@ function formatTime(date: Date): string {
 export default function NotificationsScreen({ navigation }: Props) {
     const logs = useActivityStore(s => s.logs);
     const clearLogs = useActivityStore(s => s.clearLogs);
-    const { decrementUnread, setUnreadCount } = useAppStore();
+    const decrementUnread = useAppStore(s => s.decrementUnread);
+    const setUnreadCount = useAppStore(s => s.setUnreadCount);
     const [hasRead, setHasRead] = useState(false);
+
+    // Ekran açılınca tüm bildirimleri okundu say
+    useEffect(() => { setUnreadCount(0); setHasRead(true); }, []);
 
     const recent = logs.slice(0, 5);
     const older = logs.slice(5);

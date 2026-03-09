@@ -26,7 +26,7 @@ export default function TransferDetailScreen({ route }: Props) {
     const updateTransferStatus = useDataStore(s => s.updateTransferStatus);
 
     const { showToast } = useToast();
-    const { user } = useAppStore();
+    const user = useAppStore(s => s.user);
     const addLog = useActivityStore(s => s.addLog);
     const [loading, setLoading] = useState(false);
 
@@ -47,11 +47,11 @@ export default function TransferDetailScreen({ route }: Props) {
             { text: 'Vazgeç', style: 'cancel' },
             {
                 text: 'Onayla', style: action === 'reject' ? 'destructive' : 'default',
-                onPress: () => {
+                onPress: async () => {
                     setLoading(true);
-                    setTimeout(() => {
-                        updateTransferStatus(transfer.id, newStatus);
-                        addLog({
+                    try {
+                        await updateTransferStatus(transfer.id, newStatus);
+                        await addLog({
                             level: action === 'approve' ? 'info' : 'error',
                             title: action === 'approve' ? `Transfer Onaylandı: ${transfer.transferNo}` : `Transfer Reddedildi: ${transfer.transferNo}`,
                             description: action === 'approve'
@@ -62,12 +62,15 @@ export default function TransferDetailScreen({ route }: Props) {
                             entityNo: transfer.transferNo,
                             user: user?.name,
                         });
-                        setLoading(false);
                         showToast({
-                            message: action === 'approve' ? '🚚 Transfer onaylandı, yolaçıktı!' : '❌ Transfer reddedildi.',
-                            type: action === 'approve' ? 'success' : 'error'
+                            message: action === 'approve' ? '🚚 Transfer onaylandı!' : '❌ Transfer reddedildi.',
+                            type: action === 'approve' ? 'success' : 'error',
                         });
-                    }, 1200);
+                    } catch (e) {
+                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } finally {
+                        setLoading(false);
+                    }
                 }
             },
         ]);
@@ -78,11 +81,11 @@ export default function TransferDetailScreen({ route }: Props) {
             { text: 'Vazgeç', style: 'cancel' },
             {
                 text: 'Onayla',
-                onPress: () => {
+                onPress: async () => {
                     setLoading(true);
-                    setTimeout(() => {
-                        updateTransferStatus(transfer.id, 'delivered');
-                        addLog({
+                    try {
+                        await updateTransferStatus(transfer.id, 'delivered');
+                        await addLog({
                             level: 'success',
                             title: `Transfer Teslim: ${transfer.transferNo}`,
                             description: `${transfer.targetWarehouse} deposuna teslim edildi.`,
@@ -91,9 +94,12 @@ export default function TransferDetailScreen({ route }: Props) {
                             entityNo: transfer.transferNo,
                             user: user?.name,
                         });
-                        setLoading(false);
                         showToast({ message: '✅ Transfer başarıyla teslim alındı.', type: 'success' });
-                    }, 1200);
+                    } catch (e) {
+                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } finally {
+                        setLoading(false);
+                    }
                 }
             },
         ]);

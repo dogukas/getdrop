@@ -37,7 +37,7 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
     const completeOrder = useDataStore(s => s.completeOrder);
 
     const { showToast } = useToast();
-    const { user } = useAppStore();
+    const user = useAppStore(s => s.user);
     const addLog = useActivityStore(s => s.addLog);
     const [loading, setLoading] = useState(false);
 
@@ -68,52 +68,54 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
             { text: 'Vazgeç', style: 'cancel' },
             {
                 text: 'Onayla', style: action === 'cancel' ? 'destructive' : 'default',
-                onPress: () => {
+                onPress: async () => {
                     setLoading(true);
-                    setTimeout(() => {
+                    try {
                         if (action === 'complete') {
-                            completeOrder(order.id);
-                            addLog({
+                            await completeOrder(order.id);
+                            await addLog({
                                 level: 'success',
                                 title: `Sipariş Tamamlandı: ${order.orderNo}`,
-                                description: `${order.customer} siparisi tamamlandı. ${order.items.length} kalem stoktan düşüldü.`,
+                                description: `${order.customer} siparişi tamamlandı. ${order.items.length} kalem stoktan düşüldü.`,
                                 module: 'OMS',
                                 entityId: order.id,
                                 entityNo: order.orderNo,
                                 user: user?.name,
                             });
                         } else if (action === 'process') {
-                            updateOrderStatus(order.id, 'processing');
-                            addLog({
+                            await updateOrderStatus(order.id, 'processing');
+                            await addLog({
                                 level: 'info',
                                 title: `İşleme Alındı: ${order.orderNo}`,
-                                description: `${order.customer} siparisi işleme alındı.`,
+                                description: `${order.customer} siparişi işleme alındı.`,
                                 module: 'OMS',
                                 entityId: order.id,
                                 entityNo: order.orderNo,
                                 user: user?.name,
                             });
                         } else {
-                            updateOrderStatus(order.id, 'cancelled');
-                            addLog({
+                            await updateOrderStatus(order.id, 'cancelled');
+                            await addLog({
                                 level: 'error',
                                 title: `Sipariş İptal: ${order.orderNo}`,
-                                description: `${order.customer} siparisi iptal edildi.`,
+                                description: `${order.customer} siparişi iptal edildi.`,
                                 module: 'OMS',
                                 entityId: order.id,
                                 entityNo: order.orderNo,
                                 user: user?.name,
                             });
                         }
-                        setLoading(false);
                         showToast({
-                            message: action === 'complete' ? '✅ Sipariş tamamlandı, stoklar güncellendi!' :
-                                action === 'process' ? '⚙️ Sipariş işleme alındı!' : '❌ Sipariş iptal edildi.',
+                            message: action === 'complete' ? '✅ Sipariş tamamlandı!' :
+                                action === 'process' ? '⚙️ İşleme alındı!' : '❌ İptal edildi.',
                             type: action === 'cancel' ? 'error' : 'success',
-                            duration: 3500
                         });
-                    }, 1200);
-                },
+                    } catch (e) {
+                        showToast({ message: 'İşlem sırasında hata oluştu.', type: 'error' });
+                    } finally {
+                        setLoading(false);
+                    }
+                }
             },
         ]);
     };
