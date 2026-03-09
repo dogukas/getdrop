@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, Image, StyleSheet, Dimensions, Animated } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { useAppStore } from './src/store/useAppStore';
 import { lightTheme, darkTheme } from './src/theme';
@@ -17,15 +17,23 @@ export default function App() {
   const theme = isDarkMode ? darkTheme : lightTheme;
   const [appIsReady, setAppIsReady] = useState(false);
 
+  const [fadeAnim] = useState(new Animated.Value(1));
+
   useEffect(() => {
     async function prepare() {
       try {
-        // Pre-load fonts, make any API calls you need to do here
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Minimum 1.5 sn logoyu göster
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Logoyu 2 saniye göster
       } catch (e) {
         console.warn(e);
       } finally {
-        setAppIsReady(true);
+        // Animasyonlu çıkış
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }).start(() => {
+          setAppIsReady(true);
+        });
       }
     }
 
@@ -34,17 +42,20 @@ export default function App() {
 
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady) {
-      // This tells the splash screen to hide immediately! If we call this after
-      // `setAppIsReady`, then we may see a blank screen while the app is
-      // loading its initial state and rendering its first pixels. So instead,
-      // we hide the splash screen once we know the root view has already
-      // performed layout.
       await SplashScreen.hideAsync();
     }
   }, [appIsReady]);
 
   if (!appIsReady) {
-    return null;
+    return (
+      <Animated.View style={[styles.splashContainer, { opacity: fadeAnim }]}>
+        <Image
+          source={require('../assets/splash-brand.png')}
+          style={styles.splashImage}
+          resizeMode="contain"
+        />
+      </Animated.View>
+    );
   }
 
   return (
@@ -61,3 +72,16 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#2A7A50',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashImage: {
+    width: Dimensions.get('window').width * 0.6,
+    height: Dimensions.get('window').width * 0.6,
+  }
+});
