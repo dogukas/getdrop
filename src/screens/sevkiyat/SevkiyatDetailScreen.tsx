@@ -157,12 +157,15 @@ export default function SevkiyatDetailScreen({ route }: Props) {
 
                 {/* Başlık */}
                 <View style={s.headerCard}>
-                    <View style={s.headerTop}>
-                        <View>
+                    <View style={[s.headerBanner, { backgroundColor: STATUS_COLORS[shipment.status] + '18' }]}>
+                        <View style={[s.headerIconBox, { backgroundColor: STATUS_COLORS[shipment.status] + '25' }]}>
+                            <Icon source={shipment.status === 'rejected' ? 'close-circle-outline' : shipment.status === 'accepted' ? 'check-circle-outline' : shipment.status === 'partial' ? 'percent-outline' : 'truck-outline'} size={26} color={STATUS_COLORS[shipment.status]} />
+                        </View>
+                        <View style={{ flex: 1 }}>
                             <Text style={s.shipNo}>{shipment.shipmentNo}</Text>
                             <Text style={s.supplier}>{shipment.supplier}</Text>
                         </View>
-                        <View style={[s.statusBadge, { backgroundColor: `${STATUS_COLORS[shipment.status]}18` }]}>
+                        <View style={[s.statusBadge, { backgroundColor: STATUS_COLORS[shipment.status] + '25' }]}>
                             <Text style={[s.statusText, { color: STATUS_COLORS[shipment.status] }]}>
                                 {STATUS_LABELS[shipment.status]}
                             </Text>
@@ -285,13 +288,15 @@ const ir = StyleSheet.create({
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },
     scroll: { padding: 16, gap: 16, paddingBottom: 120 },
-    headerCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 18, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4, gap: 14 },
+    headerCard: { backgroundColor: '#FFF', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4 },
+    headerBanner: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, paddingBottom: 16 },
+    headerIconBox: { width: 54, height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-    shipNo: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
+    shipNo: { fontSize: 17, fontWeight: '800', color: '#1A1A1A' },
     supplier: { fontSize: 13, color: '#666', marginTop: 2 },
     statusBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
     statusText: { fontSize: 12, fontWeight: '700' },
-    infoGrid: { gap: 10 },
+    infoGrid: { gap: 10, paddingHorizontal: 18, paddingBottom: 16 },
     section: { gap: 10 },
     sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
     tableCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4 },

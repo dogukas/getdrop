@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, RefreshControl, Animated } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useDataStore } from '../../store/useDataStore';
@@ -10,11 +10,11 @@ import { EmptyState } from '../../components/EmptyState';
 
 const PURPLE = '#6C63FF';
 
-const STATUS_CONFIG: Record<TransferStatus, { label: string; color: string; bg: string }> = {
-    pending: { label: 'Bekliyor', color: '#E8A020', bg: '#E8A02018' },
-    in_transit: { label: 'Aktarımda', color: '#6C63FF', bg: '#6C63FF18' },
-    delivered: { label: 'Teslim', color: '#2A7A50', bg: '#2A7A5018' },
-    rejected: { label: 'Reddedildi', color: '#E05C5C', bg: '#E05C5C18' },
+const STATUS_CONFIG: Record<TransferStatus, { label: string; color: string; bg: string; icon: string }> = {
+    pending: { label: 'Bekliyor', color: '#E8A020', bg: '#E8A02015', icon: 'clock-outline' },
+    in_transit: { label: 'Aktarımda', color: '#6C63FF', bg: '#6C63FF15', icon: 'truck-fast-outline' },
+    delivered: { label: 'Teslim', color: '#2A7A50', bg: '#2A7A5015', icon: 'check-circle-outline' },
+    rejected: { label: 'Reddedildi', color: '#E05C5C', bg: '#E05C5C15', icon: 'close-circle-outline' },
 };
 
 const FILTERS: { key: TransferStatus | 'all'; label: string }[] = [
@@ -33,44 +33,76 @@ export default function TransferScreen({ navigation }: Props) {
     const loadTransfers = useDataStore(s => s.loadTransfers);
     const user = useAppStore(s => s.user);
     const isAdmin = user?.role === 'admin';
+
     const [activeFilter, setActiveFilter] = useState<TransferStatus | 'all'>('all');
+    const [search, setSearch] = useState('');
     const [refreshing, setRefreshing] = useState(false);
 
-    const onRefresh = useCallback(async () => {
+    const pending = transfers.filter(t => t.status === 'pending').length;
+    const transit = transfers.filter(t => t.status === 'in_transit').length;
+    const delivered = transfers.filter(t => t.status === 'delivered').length;
+
+    const onRefresh = async () => {
         setRefreshing(true);
         await loadTransfers();
         setRefreshing(false);
-    }, []);
+    };
 
-    const filtered = transfers.filter(
-        (t: Transfer) => activeFilter === 'all' || t.status === activeFilter
-    );
+    const filtered = transfers.filter((t: Transfer) => {
+        const matchStatus = activeFilter === 'all' || t.status === activeFilter;
+        const matchSearch = t.transferNo.toLowerCase().includes(search.toLowerCase())
+            || t.sourceWarehouse.toLowerCase().includes(search.toLowerCase())
+            || t.targetWarehouse.toLowerCase().includes(search.toLowerCase());
+        return matchStatus && matchSearch;
+    });
 
     return (
         <View style={s.root}>
-            {/* Admin FAB */}
             {isAdmin && (
                 <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateTransfer')} activeOpacity={0.85}>
                     <Icon source="plus" size={26} color="#FFF" />
                 </TouchableOpacity>
             )}
+
+            {/* Özet */}
+            <View style={s.summaryRow}>
+                <MiniStat value={pending} label="Bekliyor" color="#E8A020" />
+                <MiniStat value={transit} label="Aktarımda" color={PURPLE} />
+                <MiniStat value={delivered} label="Teslim" color="#2A7A50" />
+            </View>
+
+            {/* Arama */}
+            <View style={s.searchBox}>
+                <Icon source="magnify" size={20} color="#AAA" />
+                <TextInput
+                    style={s.searchInput}
+                    placeholder="Transfer no veya depo..."
+                    placeholderTextColor="#AAA"
+                    value={search}
+                    onChangeText={setSearch}
+                />
+                {search.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearch('')}>
+                        <Icon source="close-circle" size={18} color="#AAA" />
+                    </TouchableOpacity>
+                )}
+            </View>
+
             {/* Filtreler */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
                 style={s.filterBar} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
                 {FILTERS.map((f) => {
                     const active = activeFilter === f.key;
                     return (
-                        <TouchableOpacity
-                            key={f.key} onPress={() => setActiveFilter(f.key)}
-                            style={[s.filterChip, active && { backgroundColor: PURPLE }]}
-                        >
-                            <Text style={[s.filterLabel, active && { color: 'white' }]}>{f.label}</Text>
-                        </TouchableOpacity>
+                        <FilterChip key={f.key} label={f.label} active={active} activeColor={PURPLE} onPress={() => setActiveFilter(f.key)} />
                     );
                 })}
             </ScrollView>
 
-            {/* Liste */}
+            {!isLoading && (
+                <Text style={s.resultCount}>{filtered.length} transfer</Text>
+            )}
+
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={s.list}
@@ -82,7 +114,7 @@ export default function TransferScreen({ navigation }: Props) {
                     <EmptyState
                         icon="swap-horizontal"
                         title="Transfer Bulunamadı"
-                        description={activeFilter !== 'all' ? "Filtreye uygun transfer yok." : "Henüz hiç depo transfer kaydı yok."}
+                        description={activeFilter !== 'all' || search ? "Arama veya filtreye uygun transfer yok." : "Henüz hiç depo transfer kaydı yok."}
                     />
                 ) : (
                     filtered.map((t) => (
@@ -94,74 +126,151 @@ export default function TransferScreen({ navigation }: Props) {
     );
 }
 
+function MiniStat({ value, label, color }: { value: number; label: string; color: string }) {
+    return (
+        <View style={[ms.wrap, { backgroundColor: color + '12' }]}>
+            <Text style={[ms.val, { color }]}>{value}</Text>
+            <Text style={ms.lbl}>{label}</Text>
+        </View>
+    );
+}
+const ms = StyleSheet.create({
+    wrap: { flex: 1, borderRadius: 14, paddingVertical: 10, alignItems: 'center', gap: 2 },
+    val: { fontSize: 18, fontWeight: '800' },
+    lbl: { fontSize: 10, color: '#999', fontWeight: '600' },
+});
+
+function FilterChip({ label, active, activeColor, onPress }: { label: string; active: boolean; activeColor: string; onPress: () => void }) {
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const handlePress = () => {
+        Animated.sequence([
+            Animated.timing(scaleAnim, { toValue: 0.92, duration: 80, useNativeDriver: true }),
+            Animated.timing(scaleAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+        ]).start();
+        onPress();
+    };
+    return (
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <TouchableOpacity
+                onPress={handlePress}
+                style={[fc.chip, active && { backgroundColor: activeColor, borderColor: activeColor }]}
+                activeOpacity={0.8}
+            >
+                <Text style={[fc.label, active && { color: 'white' }]}>{label}</Text>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
+const fc = StyleSheet.create({
+    chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E8E8E8' },
+    label: { fontSize: 13, fontWeight: '600', color: '#666' },
+});
+
 function TransferCard({ transfer, onPress }: { transfer: Transfer; onPress: () => void }) {
     const cfg = STATUS_CONFIG[transfer.status];
     const totalQty = transfer.items.reduce((s, i) => s + i.quantity, 0);
+    const scaleAnim = useRef(new Animated.Value(1)).current;
 
     return (
-        <TouchableOpacity onPress={onPress} style={s.card} activeOpacity={0.85}>
-            <View style={s.cardHeader}>
-                <Text style={s.cardNo}>{transfer.transferNo}</Text>
-                <View style={[s.badge, { backgroundColor: cfg.bg }]}>
-                    <Text style={[s.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <TouchableOpacity
+                onPress={onPress}
+                onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, tension: 200, friction: 10, useNativeDriver: true }).start()}
+                onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 10, useNativeDriver: true }).start()}
+                style={s.card}
+                activeOpacity={1}
+            >
+                {/* Üst */}
+                <View style={s.cardHeader}>
+                    <View style={[s.iconBox, { backgroundColor: cfg.bg }]}>
+                        <Icon source={cfg.icon} size={18} color={cfg.color} />
+                    </View>
+                    <Text style={[s.cardNo, { marginLeft: 12, flex: 1 }]}>{transfer.transferNo}</Text>
+                    <View style={[s.badge, { backgroundColor: cfg.bg }]}>
+                        <Text style={[s.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+                    </View>
                 </View>
-            </View>
 
-            {/* Rota */}
-            <View style={s.routeRow}>
-                <View style={s.routeBox}>
-                    <Icon source="warehouse" size={14} color={PURPLE} />
-                    <Text style={s.routeText} numberOfLines={1}>{transfer.sourceWarehouse}</Text>
+                {/* Rota Görseli */}
+                <View style={s.routeContainer}>
+                    <View style={s.routeNode}>
+                        <View style={[s.routeDot, { backgroundColor: PURPLE }]} />
+                        <View style={s.routeBox}>
+                            <Icon source="warehouse" size={12} color={PURPLE} />
+                            <Text style={s.routeLabel} numberOfLines={1}>{transfer.sourceWarehouse}</Text>
+                        </View>
+                    </View>
+                    <View style={s.routeLine}>
+                        <View style={s.routeLineInner} />
+                        <Icon source="arrow-right" size={14} color={PURPLE} />
+                    </View>
+                    <View style={s.routeNode}>
+                        <View style={[s.routeDot, { backgroundColor: '#2A7A50' }]} />
+                        <View style={s.routeBox}>
+                            <Icon source="warehouse" size={12} color="#2A7A50" />
+                            <Text style={s.routeLabel} numberOfLines={1}>{transfer.targetWarehouse}</Text>
+                        </View>
+                    </View>
                 </View>
-                <Icon source="arrow-right" size={16} color="#CCC" />
-                <View style={s.routeBox}>
-                    <Icon source="warehouse" size={14} color="#2A7A50" />
-                    <Text style={s.routeText} numberOfLines={1}>{transfer.targetWarehouse}</Text>
-                </View>
-            </View>
 
-            <View style={s.cardDivider} />
+                <View style={s.cardDivider} />
 
-            <View style={s.cardFooter}>
-                <View style={s.footItem}>
-                    <Icon source="package-variant" size={13} color="#888" />
-                    <Text style={s.footText}>{transfer.items.length} kalem · {totalQty} adet</Text>
+                {/* Footer */}
+                <View style={s.cardFooter}>
+                    <View style={s.footItem}>
+                        <Icon source="package-variant" size={13} color="#AAA" />
+                        <Text style={s.footText}>{transfer.items.length} kalem · {totalQty} adet</Text>
+                    </View>
+                    <View style={s.footItem}>
+                        <Icon source="calendar-outline" size={13} color="#AAA" />
+                        <Text style={s.footText}>{transfer.plannedDate}</Text>
+                    </View>
                 </View>
-                <View style={s.footItem}>
-                    <Icon source="calendar-outline" size={13} color="#888" />
-                    <Text style={s.footText}>{transfer.plannedDate}</Text>
-                </View>
-            </View>
 
-            {transfer.notes && (
-                <View style={s.noteRow}>
-                    <Icon source="alert-circle-outline" size={13} color={PURPLE} />
-                    <Text style={s.noteText} numberOfLines={1}>{transfer.notes}</Text>
-                </View>
-            )}
-        </TouchableOpacity>
+                {transfer.notes && (
+                    <View style={s.noteRow}>
+                        <Icon source="alert-circle-outline" size={12} color={PURPLE} />
+                        <Text style={s.noteText} numberOfLines={1}>{transfer.notes}</Text>
+                    </View>
+                )}
+            </TouchableOpacity>
+        </Animated.View>
     );
 }
 
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },
-    filterBar: { maxHeight: 60, paddingTop: 12 },
-    filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 12 },
-    filterLabel: { fontSize: 13, fontWeight: '600', color: '#555' },
-    list: { paddingHorizontal: 16, paddingBottom: 32, gap: 12 },
-    card: { backgroundColor: '#FFF', borderRadius: 18, padding: 16, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4 },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    cardNo: { fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
+    summaryRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, gap: 8 },
+    searchBox: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+        marginHorizontal: 16, marginTop: 12, marginBottom: 8,
+        borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11,
+        gap: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    },
+    searchInput: { flex: 1, fontSize: 14, color: '#333' },
+    filterBar: { maxHeight: 52, marginBottom: 4 },
+    resultCount: { fontSize: 12, color: '#AAA', fontWeight: '600', paddingHorizontal: 16, marginBottom: 6 },
+    list: { paddingHorizontal: 16, paddingBottom: 100, gap: 10 },
+    card: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 4 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+    iconBox: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+    cardNo: { fontSize: 14, fontWeight: '800', color: '#1A1A1A' },
     badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-    badgeText: { fontSize: 11, fontWeight: '700' },
-    routeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    routeBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F8F8F8', borderRadius: 8, padding: 8 },
-    routeText: { fontSize: 11, fontWeight: '600', color: '#333', flex: 1 },
-    cardDivider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 12 },
-    cardFooter: { flexDirection: 'row', gap: 16 },
+    badgeText: { fontSize: 10.5, fontWeight: '700' },
+
+    routeContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    routeNode: { flex: 1, alignItems: 'center', gap: 4 },
+    routeDot: { width: 8, height: 8, borderRadius: 4 },
+    routeBox: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F5F5F5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, width: '100%' },
+    routeLabel: { fontSize: 11, fontWeight: '600', color: '#333', flex: 1 },
+    routeLine: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingTop: 12 },
+    routeLineInner: { flex: 1, height: 1, backgroundColor: '#DDD' },
+
+    cardDivider: { height: 1, backgroundColor: '#F5F5F5', marginVertical: 12 },
+    cardFooter: { flexDirection: 'row', gap: 14 },
     footItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    footText: { fontSize: 12, color: '#888' },
-    noteRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, backgroundColor: '#6C63FF10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+    footText: { fontSize: 11.5, color: '#AAA' },
+    noteRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: '#6C63FF10', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
     noteText: { fontSize: 11, color: PURPLE, flex: 1 },
-    fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: PURPLE, shadowOpacity: 0.4, shadowRadius: 10, zIndex: 99 },
+    fab: { position: 'absolute', bottom: 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PURPLE, alignItems: 'center', justifyContent: 'center', elevation: 8, shadowColor: PURPLE, shadowOpacity: 0.4, shadowRadius: 12, zIndex: 99 },
 });

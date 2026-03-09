@@ -2,15 +2,17 @@ import React, { useRef, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
     View, ScrollView, StyleSheet, TouchableOpacity,
-    Dimensions, Animated, Easing, RefreshControl, StatusBar
+    Dimensions, Animated, RefreshControl, StatusBar
 } from 'react-native';
-import { Text, Icon, Badge } from 'react-native-paper';
+import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAppStore } from '../store/useAppStore';
 import { useDataStore } from '../store/useDataStore';
 import { SkeletonList } from '../components/SkeletonLoader';
 import { Product } from '../types/database';
 import { useActivityStore } from '../store/useActivityStore';
+import { AnimatedCircularProgress } from 'react-native-circular-progress';
+import ConfettiCannon from 'react-native-confetti-cannon';
 
 type Props = NativeStackScreenProps<any, 'Home'>;
 
@@ -31,27 +33,35 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
     return <Animated.View style={{ opacity: op, transform: [{ translateY: ty }] }}>{children}</Animated.View>;
 }
 
-/* ── Stat Pill ──────────────────────────────────────────── */
-function StatPill({ label, value, color }: { label: string; value: string | number; color: string }) {
+/* ── Stat Cell (2-kolon grid için) ─────────────────────── */
+function StatCell({ label, value, color }: { label: string; value: string | number; color: string }) {
     return (
-        <View style={[sp.pill, { backgroundColor: `${color} 15` }]}>
+        <View style={[sp.cell, { backgroundColor: color + '12' }]}>
             <Text style={[sp.val, { color }]}>{value}</Text>
-            <Text style={sp.lbl}>{label}</Text>
+            <Text style={sp.lbl} numberOfLines={1}>{label}</Text>
         </View>
     );
 }
 const sp = StyleSheet.create({
-    pill: { flex: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', gap: 2 },
-    val: { fontSize: 20, fontWeight: '800' },
-    lbl: { fontSize: 10, color: '#888', fontWeight: '500', textAlign: 'center' },
+    cell: {
+        flex: 1,
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 6,
+        alignItems: 'center',
+        gap: 3,
+        minWidth: 0,
+    },
+    val: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
+    lbl: { fontSize: 10, color: '#999', fontWeight: '600', textAlign: 'center' },
 });
 
-/* ── Ana Bölüm Kartı ────────────────────────────────────── */
+/* ── Ana Bölüm Kartı ─────────────────────────────────────── */
 function SectionCard({
-    title, subtitle, icon, accentColor,
+    title, subtitle, icon, accentColor, iconBg,
     stats, badge, onPress, delay,
 }: {
-    title: string; subtitle: string; icon: string; accentColor: string;
+    title: string; subtitle: string; icon: string; accentColor: string; iconBg: string;
     stats: { label: string; value: string | number; color: string }[];
     badge?: { text: string; color: string };
     onPress?: () => void; delay: number;
@@ -61,6 +71,12 @@ function SectionCard({
     const onPressIn = () => Animated.spring(scaleAnim, { toValue: 0.97, tension: 200, friction: 10, useNativeDriver: true }).start();
     const onPressOut = () => Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 10, useNativeDriver: true }).start();
 
+    // Satır başına 2 stat göster
+    const rows: (typeof stats)[] = [];
+    for (let i = 0; i < stats.length; i += 2) {
+        rows.push(stats.slice(i, i + 2));
+    }
+
     return (
         <FadeIn delay={delay}>
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
@@ -69,19 +85,19 @@ function SectionCard({
                     onPressIn={onPressIn}
                     onPressOut={onPressOut}
                     onPress={onPress}
-                    style={[sc.card, { borderLeftColor: accentColor }]}
+                    style={sc.card}
                 >
                     {/* Üst satır */}
                     <View style={sc.header}>
-                        <View style={[sc.iconBox, { backgroundColor: `${accentColor} 18` }]}>
-                            <Icon source={icon} size={26} color={accentColor} />
+                        <View style={[sc.iconBox, { backgroundColor: iconBg }]}>
+                            <Icon source={icon} size={24} color={accentColor} />
                         </View>
                         <View style={{ flex: 1, marginLeft: 14 }}>
                             <Text style={sc.title}>{title}</Text>
                             <Text style={sc.subtitle}>{subtitle}</Text>
                         </View>
                         {badge && (
-                            <View style={[sc.badge, { backgroundColor: `${badge.color} 18` }]}>
+                            <View style={[sc.badge, { backgroundColor: badge.color + '18' }]}>
                                 <Text style={[sc.badgeText, { color: badge.color }]}>{badge.text}</Text>
                             </View>
                         )}
@@ -89,14 +105,18 @@ function SectionCard({
                     </View>
 
                     {/* İnce ayraç */}
-                    <View style={[sc.divider, { backgroundColor: `${accentColor} 20` }]} />
+                    <View style={[sc.divider, { backgroundColor: accentColor + '22' }]} />
 
-                    {/* Stat sütunları */}
-                    <View style={sc.statsRow}>
-                        {stats.map((st) => (
-                            <StatPill key={st.label} label={st.label} value={st.value} color={st.color} />
-                        ))}
-                    </View>
+                    {/* 2-kolon stat ızgara */}
+                    {rows.map((row, ri) => (
+                        <View key={ri} style={[sc.statsRow, ri > 0 && { marginTop: 6 }]}>
+                            {row.map((st) => (
+                                <StatCell key={st.label} label={st.label} value={st.value} color={st.color} />
+                            ))}
+                            {/* Tek sayı kaldıysa boşluk ekle */}
+                            {row.length === 1 && <View style={{ flex: 1 }} />}
+                        </View>
+                    ))}
                 </TouchableOpacity>
             </Animated.View>
         </FadeIn>
@@ -104,18 +124,22 @@ function SectionCard({
 }
 const sc = StyleSheet.create({
     card: {
-        backgroundColor: '#FFF', borderRadius: 20,
-        padding: 18, marginBottom: 14,
-        borderLeftWidth: 4,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08, shadowRadius: 12, elevation: 5,
+        backgroundColor: '#FFF',
+        borderRadius: 24,
+        padding: 18,
+        marginBottom: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.07,
+        shadowRadius: 14,
+        elevation: 5,
     },
     header: { flexDirection: 'row', alignItems: 'center' },
-    iconBox: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    title: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.2 },
-    subtitle: { fontSize: 12, color: '#888', marginTop: 2 },
-    badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginRight: 8 },
-    badgeText: { fontSize: 11, fontWeight: '700' },
+    iconBox: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    title: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', letterSpacing: 0.1 },
+    subtitle: { fontSize: 11.5, color: '#AAA', marginTop: 2 },
+    badge: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, marginRight: 8 },
+    badgeText: { fontSize: 10.5, fontWeight: '700' },
     divider: { height: 1, marginVertical: 14 },
     statsRow: { flexDirection: 'row', gap: 8 },
 });
@@ -124,7 +148,7 @@ const sc = StyleSheet.create({
 export default function HomeScreen({ navigation }: Props) {
     const user = useAppStore(s => s.user);
     const activeBranch = useAppStore(s => s.activeBranch);
-    // -- Reaktif Veri (useDataStore) --
+
     const orders = useDataStore(s => s.orders);
     const transfers = useDataStore(s => s.transfers);
     const shipments = useDataStore(s => s.shipments);
@@ -166,14 +190,26 @@ export default function HomeScreen({ navigation }: Props) {
     const totalPending = oPending + tPending + sExpected;
     const totalDone = oCompleted + tDelivered + sAccepted;
 
-    // KRİTİK STOK UYARILARI
     const criticalStocks = products.filter((p: Product) => p.stock < p.minStock);
-
-    // SON AKTİVİTELER
     const recentLogs = useActivityStore(useShallow(s => s.logs.slice(0, 5)));
+
+    // Gamification state
+    const DAILY_TARGET = 50;
+    const progressVal = Math.min((oCompleted / DAILY_TARGET) * 100, 100);
+    const isTargetReached = oCompleted >= DAILY_TARGET;
+    const [shootConfetti, setShootConfetti] = React.useState(false);
+
+    // Hedefe ilk ulaştığında konfeti tetikle
+    useEffect(() => {
+        if (isTargetReached && oCompleted === DAILY_TARGET) {
+            setShootConfetti(true);
+            setTimeout(() => setShootConfetti(false), 3000);
+        }
+    }, [isTargetReached, oCompleted]);
 
     return (
         <View style={s.root}>
+            {shootConfetti && <ConfettiCannon count={100} origin={{ x: width / 2, y: -20 }} fallSpeed={2500} fadeOut />}
             <StatusBar barStyle="dark-content" backgroundColor="#F4F6F8" />
             <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -184,15 +220,47 @@ export default function HomeScreen({ navigation }: Props) {
                 {/* ── Hero ─────────────────────────────────────── */}
                 <FadeIn delay={0}>
                     <View style={s.hero}>
+                        {/* Dekoratif daireler */}
                         <View style={s.heroBubble1} />
                         <View style={s.heroBubble2} />
-                        <View style={{ flex: 1 }}>
-                            <Text style={s.heroGreet}>{greeting} 👋</Text>
-                            <Text style={s.heroName}>{user?.name ?? 'Kullanıcı'}</Text>
-                            <Text style={s.heroSub}>Bugünkü operasyon özetini görüntüleyin</Text>
-                        </View>
-                        <View style={s.heroAvatar}>
-                            <Text style={s.heroAvatarText}>{user?.name?.slice(0, 2).toUpperCase() ?? '👤'}</Text>
+                        <View style={s.heroBubble3} />
+                        {/* İçerik */}
+                        <View style={s.heroContent}>
+                            <View style={s.heroTextBlock}>
+                                <Text style={s.heroGreet}>{greeting} 👋</Text>
+                                <Text style={s.heroName}>{user?.name ?? 'Kullanıcı'}</Text>
+                                {activeBranch && (
+                                    <View style={s.heroBranchPill}>
+                                        <Text style={s.heroBranchText} numberOfLines={1}>{activeBranch.name}</Text>
+                                    </View>
+                                )}
+                            </View>
+                            <View style={s.heroRight}>
+                                <View style={{ position: 'relative', alignItems: 'center' }}>
+                                    <AnimatedCircularProgress
+                                        size={72}
+                                        width={6}
+                                        fill={progressVal}
+                                        tintColor="#4CAF50"
+                                        backgroundColor="rgba(255,255,255,0.2)"
+                                        rotation={0}
+                                        lineCap="round"
+                                        duration={1000}
+                                    >
+                                        {
+                                            (fill: number) => (
+                                                <View style={s.heroAvatar}>
+                                                    <Text style={s.heroAvatarText}>{oCompleted}</Text>
+                                                    <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', marginTop: -2 }}>/{DAILY_TARGET}</Text>
+                                                </View>
+                                            )
+                                        }
+                                    </AnimatedCircularProgress>
+                                    <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginTop: 4 }}>
+                                        Günlük Hedef
+                                    </Text>
+                                </View>
+                            </View>
                         </View>
                     </View>
                 </FadeIn>
@@ -202,7 +270,7 @@ export default function HomeScreen({ navigation }: Props) {
                     <View style={s.summaryBand}>
                         <View style={s.summaryItem}>
                             <Text style={s.summaryVal}>{totalActions}</Text>
-                            <Text style={s.summaryLbl}>Toplam İşlem</Text>
+                            <Text style={s.summaryLbl}>Toplam</Text>
                         </View>
                         <View style={s.sumDivider} />
                         <View style={s.summaryItem}>
@@ -213,6 +281,11 @@ export default function HomeScreen({ navigation }: Props) {
                         <View style={s.summaryItem}>
                             <Text style={[s.summaryVal, { color: GREEN }]}>{totalDone}</Text>
                             <Text style={s.summaryLbl}>Tamamlanan</Text>
+                        </View>
+                        <View style={s.sumDivider} />
+                        <View style={s.summaryItem}>
+                            <Text style={[s.summaryVal, { color: '#E05C5C' }]}>{criticalStocks.length}</Text>
+                            <Text style={s.summaryLbl}>Kritik Stok</Text>
                         </View>
                     </View>
                 </FadeIn>
@@ -226,13 +299,14 @@ export default function HomeScreen({ navigation }: Props) {
                     <SkeletonList count={3} />
                 ) : (
                     <>
-                        {/* ── 1. OMS ───────────────────────────────────── */}
+                        {/* ── 1. OMS ─────────────────────────────────── */}
                         <SectionCard
                             delay={140}
                             title="OMS"
                             subtitle="Sipariş Yönetim Sistemi"
                             icon="clipboard-list-outline"
                             accentColor="#2A7A50"
+                            iconBg="#E8F5EE"
                             badge={oPending > 0 ? { text: `${oPending} Yeni`, color: '#2A7A50' } : undefined}
                             onPress={() => navigation.push('OMS')}
                             stats={[
@@ -243,13 +317,14 @@ export default function HomeScreen({ navigation }: Props) {
                             ]}
                         />
 
-                        {/* ── 2. Transfer Merkezi ──────────────────────── */}
+                        {/* ── 2. Transfer Merkezi ────────────────────── */}
                         <SectionCard
                             delay={220}
                             title="Transfer Merkezi"
-                            subtitle="Depo içi / depolar arası transfer"
+                            subtitle="Depolar arası transfer"
                             icon="swap-horizontal-bold"
                             accentColor="#6C63FF"
+                            iconBg="#EEEEFF"
                             badge={tTransit > 0 ? { text: `${tTransit} Aktif`, color: '#6C63FF' } : undefined}
                             onPress={() => navigation.push('Transfer')}
                             stats={[
@@ -259,13 +334,14 @@ export default function HomeScreen({ navigation }: Props) {
                             ]}
                         />
 
-                        {/* ── 3. Sevkiyat Kabul ────────────────────────── */}
+                        {/* ── 3. Sevkiyat Kabul ──────────────────────── */}
                         <SectionCard
                             delay={300}
                             title="Sevkiyat Kabul"
                             subtitle="Gelen mal ve sevkiyat kabulü"
                             icon="truck-check-outline"
                             accentColor="#E8A020"
+                            iconBg="#FFF8E6"
                             badge={sExpected > 0 ? { text: `${sExpected} Bekleyen`, color: '#E8A020' } : undefined}
                             onPress={() => navigation.push('Sevkiyat')}
                             stats={[
@@ -276,31 +352,38 @@ export default function HomeScreen({ navigation }: Props) {
                             ]}
                         />
 
-                        {/* ── 4. Kritik Stok Uyarıları ───────────────────── */}
+                        {/* ── 4. Kritik Stok Uyarıları ────────────────── */}
                         <FadeIn delay={380}>
-                            <Text style={[s.sectionTitle, { marginTop: 16 }]}>Kritik Stok Uyarısı</Text>
-                            <View style={s.alertCard}>
-                                {criticalStocks.slice(0, 3).map((prod: Product, idx: number) => (
-                                    <View key={prod.id}>
-                                        {idx > 0 && <View style={s.alertDivider} />}
-                                        <View style={s.alertRow}>
-                                            <View style={s.alertIconBox}>
-                                                <Icon source="alert-outline" size={18} color="#E05C5C" />
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={s.alertName} numberOfLines={1}>{prod.name}</Text>
-                                                <Text style={s.alertSku}>{prod.sku}</Text>
-                                            </View>
-                                            <View style={s.alertQtyBox}>
-                                                <Text style={s.alertQtyText}>{prod.stock} adet</Text>
+                            <Text style={[s.sectionTitle, { marginTop: 6 }]}>Kritik Stok Uyarısı</Text>
+                            {criticalStocks.length === 0 ? (
+                                <View style={s.alertEmpty}>
+                                    <Icon source="check-circle-outline" size={28} color="#4CAF50" />
+                                    <Text style={s.alertEmptyText}>Tüm stoklar yeterli</Text>
+                                </View>
+                            ) : (
+                                <View style={s.alertCard}>
+                                    {criticalStocks.slice(0, 3).map((prod: Product, idx: number) => (
+                                        <View key={prod.id}>
+                                            {idx > 0 && <View style={s.alertDivider} />}
+                                            <View style={s.alertRow}>
+                                                <View style={s.alertIconBox}>
+                                                    <Icon source="alert-outline" size={18} color="#E05C5C" />
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={s.alertName} numberOfLines={1}>{prod.name}</Text>
+                                                    <Text style={s.alertSku}>{prod.sku}</Text>
+                                                </View>
+                                                <View style={s.alertQtyBox}>
+                                                    <Text style={s.alertQtyText}>{prod.stock} adet</Text>
+                                                </View>
                                             </View>
                                         </View>
-                                    </View>
-                                ))}
-                            </View>
+                                    ))}
+                                </View>
+                            )}
                         </FadeIn>
 
-                        {/* ── 5. Son Aktiviteler Feed ─────────────────── */}
+                        {/* ── 5. Son Aktiviteler ──────────────────────── */}
                         <FadeIn delay={440}>
                             <View style={s.feedHeader}>
                                 <Text style={s.sectionTitle}>Son Aktiviteler</Text>
@@ -350,22 +433,56 @@ const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },
     scroll: { paddingHorizontal: 16, paddingTop: 16 },
 
-    /* Hero */
+    /* ── Hero ── */
     hero: {
-        backgroundColor: GREEN, borderRadius: 22, padding: 22,
-        marginBottom: 16, flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
-        shadowColor: GREEN_DARK, shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3, shadowRadius: 16, elevation: 10,
+        backgroundColor: GREEN,
+        borderRadius: 24,
+        marginBottom: 14,
+        overflow: 'hidden',
+        shadowColor: GREEN_DARK,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.28,
+        shadowRadius: 18,
+        elevation: 10,
     },
-    heroBubble1: { position: 'absolute', width: 130, height: 130, borderRadius: 65, backgroundColor: 'rgba(255,255,255,0.07)', right: -20, top: -30 },
-    heroBubble2: { position: 'absolute', width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.05)', right: 70, bottom: -20 },
-    heroGreet: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
-    heroName: { fontSize: 21, fontWeight: '800', color: '#FFF', marginTop: 3, letterSpacing: 0.2 },
-    heroSub: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
-    heroAvatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },
-    heroAvatarText: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+    // Dekoratif daireler – gradient efekti simülasyonu
+    heroBubble1: {
+        position: 'absolute', width: 200, height: 200, borderRadius: 100,
+        backgroundColor: 'rgba(255,255,255,0.06)', right: -50, top: -50,
+    },
+    heroBubble2: {
+        position: 'absolute', width: 120, height: 120, borderRadius: 60,
+        backgroundColor: 'rgba(255,255,255,0.08)', right: 60, bottom: -40,
+    },
+    heroBubble3: {
+        position: 'absolute', width: 60, height: 60, borderRadius: 30,
+        backgroundColor: 'rgba(255,255,255,0.05)', left: 20, top: -10,
+    },
+    heroContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 22,
+        paddingBottom: 20,
+    },
+    heroTextBlock: { flex: 1 },
+    heroGreet: { fontSize: 12, color: 'rgba(255,255,255,0.65)', letterSpacing: 0.5 },
+    heroName: { fontSize: 22, fontWeight: '800', color: '#FFF', marginTop: 4, letterSpacing: 0.1 },
+    heroSub: { fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 16 },
+    heroRight: { alignItems: 'center', gap: 8 },
+    heroAvatar: {
+        width: 60, height: 60, borderRadius: 30,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    heroAvatarText: { fontSize: 18, fontWeight: '800', color: '#FFF' },
+    heroBranchPill: {
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+        alignSelf: 'flex-start', marginTop: 8
+    },
+    heroBranchText: { fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: '600', textAlign: 'center' },
 
-    /* Summary band */
+    /* ── Summary Band ── */
     summaryBand: {
         backgroundColor: '#FFF', borderRadius: 18, padding: 16,
         flexDirection: 'row', marginBottom: 20,
@@ -373,32 +490,50 @@ const s = StyleSheet.create({
         shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
     },
     summaryItem: { flex: 1, alignItems: 'center' },
-    summaryVal: { fontSize: 22, fontWeight: '800', color: '#1A1A1A' },
-    summaryLbl: { fontSize: 11, color: '#888', marginTop: 2 },
-    sumDivider: { width: 1, backgroundColor: '#F0F0F0', marginHorizontal: 8 },
+    summaryVal: { fontSize: 20, fontWeight: '800', color: '#1A1A1A' },
+    summaryLbl: { fontSize: 10, color: '#AAA', marginTop: 2, textAlign: 'center' },
+    sumDivider: { width: 1, backgroundColor: '#F0F0F0', marginHorizontal: 4 },
 
     sectionTitle: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 12 },
 
-    /* Stok Uyarısı */
-    alertCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 5, borderWidth: 1, borderColor: '#FFEBEB' },
+    /* ── Stok Uyarısı ── */
+    alertEmpty: {
+        backgroundColor: '#FFF', borderRadius: 18, padding: 20,
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05, shadowRadius: 8, elevation: 3,
+    },
+    alertEmptyText: { fontSize: 13, color: '#4CAF50', fontWeight: '600' },
+    alertCard: {
+        backgroundColor: '#FFF', borderRadius: 20, padding: 16,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
+        borderWidth: 1, borderColor: '#FFEBEB',
+    },
     alertRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-    alertIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#E05C5C15', alignItems: 'center', justifyContent: 'center' },
+    alertIconBox: {
+        width: 36, height: 36, borderRadius: 10,
+        backgroundColor: '#E05C5C15', alignItems: 'center', justifyContent: 'center',
+    },
     alertName: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
-    alertSku: { fontSize: 11, color: '#888', marginTop: 2 },
+    alertSku: { fontSize: 11, color: '#AAA', marginTop: 2 },
     alertQtyBox: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: '#E05C5C15' },
     alertQtyText: { fontSize: 12, fontWeight: '800', color: '#E05C5C' },
     alertDivider: { height: 1, backgroundColor: '#FFF0F0', marginVertical: 8 },
 
-    /* Son Aktiviteler Feed */
-    feedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 10 },
+    /* ── Son Aktiviteler Feed ── */
+    feedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, marginBottom: 10 },
     feedSeeAll: { fontSize: 12, fontWeight: '700', color: '#6C63FF' },
     feedEmpty: { alignItems: 'center', gap: 8, paddingVertical: 24 },
     feedEmptyText: { fontSize: 13, color: '#CCC' },
-    feedCard: { backgroundColor: '#FFF', borderRadius: 18, padding: 14, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4 },
+    feedCard: {
+        backgroundColor: '#FFF', borderRadius: 18, padding: 14,
+        shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 4,
+    },
     feedDivider: { height: 1, backgroundColor: '#F5F5F5', marginVertical: 6 },
     feedRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     feedDot: { width: 8, height: 8, borderRadius: 4 },
     feedTitle: { fontSize: 12, fontWeight: '700', color: '#1A1A1A' },
-    feedDesc: { fontSize: 11, color: '#888', marginTop: 1 },
+    feedDesc: { fontSize: 11, color: '#AAA', marginTop: 1 },
     feedTime: { fontSize: 10, color: '#AAA', minWidth: 28, textAlign: 'right' },
 });

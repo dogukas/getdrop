@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Branch, AppUser } from '../types/database';
 
 export type { AppUser as UserType };
@@ -25,16 +27,29 @@ interface AppState {
     decrementUnread: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-    isDarkMode: false,
-    user: null,
-    branches: [],
-    activeBranch: null,
-    unreadCount: 0,
-    toggleTheme: () => set((s) => ({ isDarkMode: !s.isDarkMode })),
-    setUser: (user) => set({ user }),
-    setBranches: (branches) => set({ branches }),
-    setActiveBranch: (branch) => set({ activeBranch: branch }),
-    setUnreadCount: (n) => set({ unreadCount: n }),
-    decrementUnread: () => set((s) => ({ unreadCount: Math.max(0, s.unreadCount - 1) })),
-}));
+export const useAppStore = create<AppState>()(
+    persist(
+        (set) => ({
+            isDarkMode: false,
+            user: null,
+            branches: [],
+            activeBranch: null,
+            unreadCount: 0,
+            toggleTheme: () => set((s) => ({ isDarkMode: !s.isDarkMode })),
+            setUser: (user) => set({ user }),
+            setBranches: (branches) => set({ branches }),
+            setActiveBranch: (branch) => set({ activeBranch: branch }),
+            setUnreadCount: (n) => set({ unreadCount: n }),
+            decrementUnread: () => set((s) => ({ unreadCount: Math.max(0, s.unreadCount - 1) })),
+        }),
+        {
+            name: 'getdrop-app-storage',
+            storage: createJSONStorage(() => AsyncStorage),
+            partialize: (state) => ({
+                isDarkMode: state.isDarkMode,
+                user: state.user,
+                activeBranch: state.activeBranch,
+            }), // Sadece bu alanları persist et
+        }
+    )
+);

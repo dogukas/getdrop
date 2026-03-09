@@ -126,13 +126,16 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
 
                 {/* Başlık Kart */}
                 <View style={s.headerCard}>
-                    <View style={s.headerTop}>
-                        <View>
+                    {/* Renkli üst banner şerit */}
+                    <View style={[s.headerBanner, { backgroundColor: cfg.color + '18' }]}>
+                        <View style={[s.headerIconBox, { backgroundColor: cfg.color + '25' }]}>
+                            <Icon source={cfg.icon} size={26} color={cfg.color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
                             <Text style={s.orderNo}>{order.orderNo}</Text>
                             <Text style={s.customer}>{order.customer}</Text>
                         </View>
-                        <View style={[s.statusBadge, { backgroundColor: `${cfg.color}18` }]}>
-                            <Icon source={cfg.icon} size={14} color={cfg.color} />
+                        <View style={[s.statusBadge, { backgroundColor: cfg.color + '25' }]}>
                             <Text style={[s.statusText, { color: cfg.color }]}>{cfg.label}</Text>
                         </View>
                     </View>
@@ -236,13 +239,16 @@ function InfoItem({ icon, label, value }: { icon: string; label: string; value: 
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },
     scroll: { padding: 16, gap: 16, paddingBottom: 120 },
-    headerCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 18, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4 },
+    headerCard: { backgroundColor: '#FFF', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4 },
+    headerBanner: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, paddingBottom: 16 },
+    headerIconBox: { width: 54, height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-    orderNo: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
-    customer: { fontSize: 14, color: '#666', marginTop: 3 },
+    orderNo: { fontSize: 17, fontWeight: '800', color: '#1A1A1A' },
+    customer: { fontSize: 13, color: '#666', marginTop: 3 },
     statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
     statusText: { fontSize: 12, fontWeight: '700' },
-    infoGrid: { gap: 10 },
+    infoGrid: { gap: 10, paddingHorizontal: 18, paddingBottom: 16 },
+
     infoItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     infoLabel: { fontSize: 11, color: '#AAA', marginBottom: 1 },
     infoValue: { fontSize: 13, color: '#333', fontWeight: '500', flexWrap: 'wrap' },

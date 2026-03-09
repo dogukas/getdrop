@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import { useDataStore } from '../store/useDataStore';
+
+const { width } = Dimensions.get('window');
 
 const GREEN = '#2A7A50';
 const PURPLE = '#6C63FF';
@@ -16,16 +18,18 @@ type Period = 'today' | 'week' | 'month' | 'year';
 
 const PERIOD_LABELS: Record<Period, string> = {
     today: 'Bugün',
-    week: 'Bu Hafta',
-    month: 'Bu Ay',
-    year: 'Bu Yıl',
+    week: 'Hafta',
+    month: 'Ay',
+    year: 'Yıl',
 };
+
+const PERIODS = Object.keys(PERIOD_LABELS) as Period[];
 
 // ─── Yardımcı: Tarihe göre filtre ─────────────────────────────────────────────
 function isInPeriod(dateStr: string, period: Period): boolean {
     const now = new Date();
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return true; // parse edilemezse dahil et
+    if (isNaN(d.getTime())) return true;
     switch (period) {
         case 'today':
             return d.toDateString() === now.toDateString();
@@ -59,12 +63,12 @@ function BarChart({ data, color }: { data: { label: string; value: number }[]; c
     );
 }
 const bc = StyleSheet.create({
-    wrap: { flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: 6, paddingTop: 8 },
-    col: { flex: 1, alignItems: 'center', gap: 3 },
-    barBg: { width: '100%', height: 90, borderRadius: 6, backgroundColor: '#F0F0F0', justifyContent: 'flex-end', overflow: 'hidden' },
-    bar: { width: '100%', borderRadius: 6 },
-    lbl: { fontSize: 9, color: '#888', fontWeight: '600' },
-    val: { fontSize: 10, color: '#333', fontWeight: '800' },
+    wrap: { flexDirection: 'row', alignItems: 'flex-end', height: 130, gap: 10, paddingTop: 8 },
+    col: { flex: 1, alignItems: 'center', gap: 4 },
+    barBg: { width: '100%', height: 100, borderRadius: 8, backgroundColor: '#F4F5F7', justifyContent: 'flex-end', overflow: 'hidden' },
+    bar: { width: '100%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
+    lbl: { fontSize: 10, color: '#888', fontWeight: '700' },
+    val: { fontSize: 11, color: '#1A1A1A', fontWeight: '800' },
 });
 
 // ─── Donut / Pasta benzeri yatay bar (durum dağılımı) ─────────────────────────
@@ -82,10 +86,10 @@ function DonutBar({ segments }: { segments: { label: string; value: number; colo
                             {
                                 flex: seg.value / total,
                                 backgroundColor: seg.color,
-                                borderTopLeftRadius: i === 0 ? 8 : 0,
-                                borderBottomLeftRadius: i === 0 ? 8 : 0,
-                                borderTopRightRadius: i === segments.length - 1 ? 8 : 0,
-                                borderBottomRightRadius: i === segments.length - 1 ? 8 : 0,
+                                borderTopLeftRadius: i === 0 ? 10 : 0,
+                                borderBottomLeftRadius: i === 0 ? 10 : 0,
+                                borderTopRightRadius: i === segments.length - 1 ? 10 : 0,
+                                borderBottomRightRadius: i === segments.length - 1 ? 10 : 0,
                             },
                         ]}
                     />
@@ -96,11 +100,11 @@ function DonutBar({ segments }: { segments: { label: string; value: number; colo
                 {segments.map(seg => (
                     <View key={seg.label} style={db.legendItem}>
                         <View style={[db.dot, { backgroundColor: seg.color }]} />
-                        <Text style={db.legendLabel}>{seg.label}</Text>
+                        <Text style={db.legendLabel} numberOfLines={1}>{seg.label}</Text>
                         <Text style={[db.legendVal, { color: seg.color }]}>{seg.value}</Text>
-                        <Text style={db.legendPct}>
-                            {total > 0 ? `${Math.round((seg.value / total) * 100)}%` : '0%'}
-                        </Text>
+                        <View style={db.pctBadge}>
+                            <Text style={db.legendPct}>{total > 0 ? `${Math.round((seg.value / total) * 100)}%` : '0%'}</Text>
+                        </View>
                     </View>
                 ))}
             </View>
@@ -108,50 +112,95 @@ function DonutBar({ segments }: { segments: { label: string; value: number; colo
     );
 }
 const db = StyleSheet.create({
-    wrap: { gap: 14 },
-    bar: { flexDirection: 'row', height: 16, borderRadius: 8, overflow: 'hidden', gap: 1 },
+    wrap: { gap: 18 },
+    bar: { flexDirection: 'row', height: 16, borderRadius: 10, overflow: 'hidden', gap: 2 },
     seg: { height: '100%' },
-    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, minWidth: 120 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    legendLabel: { fontSize: 11, color: '#555', flex: 1 },
-    legendVal: { fontSize: 12, fontWeight: '800' },
-    legendPct: { fontSize: 10, color: '#AAA', width: 30, textAlign: 'right' },
+    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '47%', paddingVertical: 4 },
+    dot: { width: 10, height: 10, borderRadius: 5 },
+    legendLabel: { fontSize: 12, color: '#555', fontWeight: '600', flex: 1 },
+    legendVal: { fontSize: 14, fontWeight: '800' },
+    pctBadge: { backgroundColor: '#F0F0F0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+    legendPct: { fontSize: 9, color: '#888', fontWeight: '800' },
 });
 
-// ─── KPI Kart ──────────────────────────────────────────────────────────────────
+// ─── KPI Kart Yeni Tasarım ───────────────────────────────────────────────────────
 function KpiCard({ icon, label, value, sub, color, trend }: {
     icon: string; label: string; value: string | number; sub: string; color: string; trend: 'up' | 'down' | 'same';
 }) {
     const trendIcon = trend === 'up' ? 'trending-up' : trend === 'down' ? 'trending-down' : 'minus';
     const trendColor = trend === 'up' ? '#2A7A50' : trend === 'down' ? '#E05C5C' : '#888';
+
     return (
-        <View style={[kc.card, { borderTopColor: color }]}>
-            <View style={[kc.iconBox, { backgroundColor: `${color}15` }]}>
-                <Icon source={icon} size={20} color={color} />
+        <View style={kc.card}>
+            <View style={kc.topRow}>
+                <View style={[kc.iconBox, { backgroundColor: `${color}15` }]}>
+                    <Icon source={icon} size={18} color={color} />
+                </View>
+                <View style={[kc.trendBadge, { backgroundColor: `${trendColor}12` }]}>
+                    <Icon source={trendIcon} size={12} color={trendColor} />
+                </View>
             </View>
-            <Text style={kc.label}>{label}</Text>
             <Text style={kc.value}>{value}</Text>
-            <View style={kc.trendRow}>
-                <Icon source={trendIcon} size={12} color={trendColor} />
-                <Text style={[kc.sub, { color: trendColor }]}>{sub}</Text>
-            </View>
+            <Text style={kc.label}>{label}</Text>
+
+            <View style={kc.divider} />
+            <Text style={kc.sub}>{sub}</Text>
+
+            {/* Border glow efekti için absolute çizgi */}
+            <View style={[kc.bottomLine, { backgroundColor: color }]} />
         </View>
     );
 }
 const kc = StyleSheet.create({
-    card: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, padding: 14, borderTopWidth: 3, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-    iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-    label: { fontSize: 10, color: '#888', fontWeight: '600' },
-    value: { fontSize: 20, fontWeight: '800', color: '#1A1A1A', marginTop: 2 },
-    trendRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
-    sub: { fontSize: 10 },
+    card: { flex: 1, backgroundColor: '#FFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 4, position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: '#F0F0F0' },
+    topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 },
+    iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    trendBadge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    value: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
+    label: { fontSize: 12, color: '#888', fontWeight: '700', marginTop: 4 },
+    divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 12 },
+    sub: { fontSize: 11, color: '#AAA', fontWeight: '600' },
+    bottomLine: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3 },
 });
 
-// ─── Yatay ilerleme satırı ─────────────────────────────────────────────────────
-function ProgressRow({ label, value, total, color }: {
-    label: string; value: number; total: number; color: string;
-}) {
+// ─── Animasyonlu Dönem Seçici ──────────────────────────────────────────────────
+function AnimatedPeriodTabs({ current, onChange }: { current: Period; onChange: (p: Period) => void }) {
+    const idx = PERIODS.indexOf(current);
+    const tabWidth = (width - 32) / PERIODS.length; // 32 = margin horizontal
+
+    const slideAnim = useRef(new Animated.Value(idx * tabWidth)).current;
+
+    useEffect(() => {
+        Animated.spring(slideAnim, {
+            toValue: idx * tabWidth,
+            useNativeDriver: true,
+            friction: 7,
+            tension: 50
+        }).start();
+    }, [idx]);
+
+    return (
+        <View style={tab.wrap}>
+            <Animated.View style={[tab.activeBg, { width: tabWidth - 8, transform: [{ translateX: slideAnim }] }]} />
+            {PERIODS.map(p => (
+                <TouchableOpacity key={p} style={tab.btn} onPress={() => onChange(p)} activeOpacity={0.7}>
+                    <Text style={[tab.txt, current === p && tab.txtActive]}>{PERIOD_LABELS[p]}</Text>
+                </TouchableOpacity>
+            ))}
+        </View>
+    );
+}
+const tab = StyleSheet.create({
+    wrap: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, padding: 4, position: 'relative' },
+    activeBg: { position: 'absolute', top: 4, bottom: 4, left: 4, backgroundColor: '#FFF', borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+    btn: { flex: 1, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+    txt: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.7)' },
+    txtActive: { color: GREEN },
+});
+
+// ─── Yatay İlerleme Satırı ─────────────────────────────────────────────────────
+function ProgressRow({ label, value, total, color }: { label: string; value: number; total: number; color: string; }) {
     const pct = total > 0 ? Math.round((value / total) * 100) : 0;
     return (
         <View style={pr.row}>
@@ -164,12 +213,13 @@ function ProgressRow({ label, value, total, color }: {
     );
 }
 const pr = StyleSheet.create({
-    row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    label: { width: 130, fontSize: 11, color: '#555', fontWeight: '600' },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    label: { width: 140, fontSize: 12, color: '#333', fontWeight: '700' },
     barBg: { flex: 1, height: 8, backgroundColor: '#F0F0F0', borderRadius: 4, overflow: 'hidden' },
     bar: { height: '100%', borderRadius: 4 },
-    pct: { width: 24, fontSize: 12, fontWeight: '800', textAlign: 'right' },
+    pct: { width: 34, fontSize: 13, fontWeight: '800', textAlign: 'right' },
 });
+
 
 // ─── Ana Ekran ─────────────────────────────────────────────────────────────────
 export default function ReportsScreen() {
@@ -199,7 +249,6 @@ export default function ReportsScreen() {
     const oCancelled = filteredOrders.filter(o => o.status === 'cancelled').length;
     const oCompletePct = oTotal > 0 ? Math.round((oCompleted / oTotal) * 100) : 0;
 
-    // Toplam sipariş tutarı
     const orderRevenue = filteredOrders.reduce((sum, o) =>
         sum + o.items.reduce((s, i) => s + i.quantity * (i.unitPrice ?? 0), 0), 0
     );
@@ -225,7 +274,7 @@ export default function ReportsScreen() {
     const okProducts = products.filter(p => p.stock >= p.minStock);
     const totalStock = products.reduce((s, p) => s + p.stock, 0);
 
-    // ── Günlük sipariş akışı (son 7 gün) ───────────────────────────────────────
+    // ── Günlük sipariş akışı ───────────────────────────────────────
     const dailyOrderData = useMemo(() => {
         const days: { label: string; value: number }[] = [];
         for (let i = 6; i >= 0; i--) {
@@ -241,193 +290,188 @@ export default function ReportsScreen() {
         return days;
     }, [orders]);
 
-    // ── Ürün bazlı stok dağılımı (en düşük 6 ürün) ─────────────────────────────
+    // ── Ürün bazlı stok dağılımı ─────────────────────────────
     const topCritical = [...products]
         .sort((a, b) => (a.stock / a.minStock) - (b.stock / b.minStock))
         .slice(0, 6);
 
     return (
-        <ScrollView style={s.root} showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-
-            {/* Başlık */}
-            <View style={s.branchHeader}>
-                <Icon source="domain" size={24} color={GREEN} />
-                <Text style={s.branchHeaderText}>{activeBranch?.name ?? 'Depo'} Raporları</Text>
-            </View>
-
-            {/* Dönem Seçici */}
-            <View style={s.periodRow}>
-                {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
-                    <TouchableOpacity
-                        key={p}
-                        onPress={() => setPeriod(p)}
-                        style={[s.periodChip, period === p && { backgroundColor: GREEN }]}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[s.periodText, period === p && { color: 'white' }]}>
-                            {PERIOD_LABELS[p]}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-            {/* ── Operasyon KPI Özeti ─────────────────────────────── */}
-            <Text style={s.section}>📊 Operasyon Özeti</Text>
-            <View style={s.kpiRow}>
-                <KpiCard
-                    icon="clipboard-list-outline"
-                    label="Toplam Sipariş"
-                    value={oTotal}
-                    sub={`${oCompletePct}% tamamlanma`}
-                    color={GREEN}
-                    trend={oCompletePct >= 50 ? 'up' : 'down'}
-                />
-                <KpiCard
-                    icon="currency-try"
-                    label="Sipariş Tutarı"
-                    value={`₺${(orderRevenue / 1000).toFixed(0)}K`}
-                    sub={`${oTotal} sipariş`}
-                    color={BLUE}
-                    trend="same"
-                />
-            </View>
-            <View style={[s.kpiRow, { marginTop: 10 }]}>
-                <KpiCard
-                    icon="swap-horizontal-bold"
-                    label="Transfer"
-                    value={tTotal}
-                    sub={`${tDelivered} teslim edildi`}
-                    color={PURPLE}
-                    trend={tDelivered > 0 ? 'up' : 'same'}
-                />
-                <KpiCard
-                    icon="truck-check-outline"
-                    label="Sevkiyat Kabul"
-                    value={`${sAcceptPct}%`}
-                    sub={`${sTotal} sevkiyat`}
-                    color={ORANGE}
-                    trend={sAcceptPct >= 70 ? 'up' : 'down'}
-                />
-            </View>
-
-            {/* ── Sipariş Durum Dağılımı ──────────────────────────── */}
-            <Text style={[s.section, { marginTop: 20 }]}>📦 Sipariş Durum Dağılımı</Text>
-            <View style={s.chartCard}>
-                {oTotal === 0 ? (
-                    <Text style={s.empty}>Bu dönemde sipariş yok</Text>
-                ) : (
-                    <DonutBar segments={[
-                        { label: 'Tamamlandı', value: oCompleted, color: GREEN },
-                        { label: 'İşlemde', value: oProcessing, color: PURPLE },
-                        { label: 'Bekleyen', value: oPending, color: ORANGE },
-                        { label: 'İptal', value: oCancelled, color: RED },
-                    ]} />
-                )}
-            </View>
-
-            {/* ── Günlük Sipariş Akışı (son 7 gün) ──────────────── */}
-            <Text style={[s.section, { marginTop: 16 }]}>📈 Son 7 Gün — Sipariş Akışı</Text>
-            <View style={s.chartCard}>
-                <BarChart color={GREEN} data={dailyOrderData} />
-                <View style={s.chartLegend}>
-                    <View style={[s.legendDot, { backgroundColor: GREEN }]} />
-                    <Text style={s.legendText}>Günlük sipariş sayısı (tüm dönem)</Text>
+        <ScrollView style={s.root} showsVerticalScrollIndicator={false}>
+            {/* Hero Header */}
+            <View style={s.hero}>
+                <View style={s.heroTitleRow}>
+                    <View>
+                        <Text style={s.heroTitle}>{activeBranch?.name ?? 'Depo'} Raporları</Text>
+                        <Text style={s.heroSub}>Anlık operasyon ve finans özetiniz</Text>
+                    </View>
+                    <View style={s.heroIconWrap}>
+                        <Icon source="chart-box-outline" size={28} color={GREEN} />
+                    </View>
                 </View>
+
+                {/* Animated Dönem Seçici */}
+                <AnimatedPeriodTabs current={period} onChange={setPeriod} />
             </View>
 
-            {/* ── Transfer Dağılımı ───────────────────────────────── */}
-            <Text style={[s.section, { marginTop: 16 }]}>🔄 Transfer Durum Dağılımı</Text>
-            <View style={s.chartCard}>
-                {tTotal === 0 ? (
-                    <Text style={s.empty}>Bu dönemde transfer yok</Text>
-                ) : (
-                    <DonutBar segments={[
-                        { label: 'Teslim', value: tDelivered, color: GREEN },
-                        { label: 'Aktarımda', value: tTransit, color: PURPLE },
-                        { label: 'Bekliyor', value: tPending, color: ORANGE },
-                        { label: 'Reddedildi', value: tRejected, color: RED },
-                    ]} />
-                )}
-            </View>
-
-            {/* ── Sevkiyat Kabul Özeti ────────────────────────────── */}
-            <Text style={[s.section, { marginTop: 16 }]}>🚚 Sevkiyat Kabul Durumu</Text>
-            <View style={s.chartCard}>
-                {sTotal === 0 ? (
-                    <Text style={s.empty}>Bu dönemde sevkiyat yok</Text>
-                ) : (
-                    <DonutBar segments={[
-                        { label: 'Kabul', value: sAccepted, color: GREEN },
-                        { label: 'Kısmi Kabul', value: sPartial, color: PURPLE },
-                        { label: 'Bekleniyor', value: sExpected, color: ORANGE },
-                        { label: 'Reddedildi', value: sRejected, color: RED },
-                    ]} />
-                )}
-            </View>
-
-            {/* ── Stok Sağlığı ───────────────────────────────────── */}
-            <Text style={[s.section, { marginTop: 16 }]}>📦 Stok Sağlığı Genel Bakış</Text>
-            <View style={s.kpiRow}>
-                <KpiCard icon="check-circle-outline" label="Normal Stok" value={okProducts.length} sub="yeterli seviye" color={GREEN} trend="up" />
-                <KpiCard icon="alert-outline" label="Düşük Stok" value={lowProducts.length} sub="dikkat gerektiriyor" color={ORANGE} trend="down" />
-            </View>
-            <View style={[s.kpiRow, { marginTop: 10 }]}>
-                <KpiCard icon="alert-circle-outline" label="Kritik Stok" value={criticalProducts.length} sub="acil müdahale gerekli" color={RED} trend="down" />
-                <KpiCard icon="package-variant-closed" label="Toplam Stok" value={totalStock.toLocaleString('tr-TR')} sub="tüm ürünler" color={BLUE} trend="same" />
-            </View>
-
-            {/* ── Kritik Ürün Listesi ─────────────────────────────── */}
-            <Text style={[s.section, { marginTop: 16 }]}>⚠️ Stok Kritiklik Sıralaması</Text>
-            <View style={[s.chartCard, { gap: 12 }]}>
-                {topCritical.length === 0 ? (
-                    <Text style={s.empty}>Tüm ürünler yeterli stokta 🎉</Text>
-                ) : (
-                    topCritical.map(p => {
-                        const pct = p.minStock > 0 ? Math.min(p.stock / p.minStock, 1) : 1;
-                        const color = pct === 0 ? RED : pct < 0.5 ? RED : pct < 1 ? ORANGE : GREEN;
-                        return (
-                            <ProgressRow
-                                key={p.id}
-                                label={p.name}
-                                value={p.stock}
-                                total={p.minStock}
-                                color={color}
-                            />
-                        );
-                    })
-                )}
-                <View style={s.stockNote}>
-                    <Icon source="information-outline" size={13} color="#AAA" />
-                    <Text style={s.stockNoteText}>Bar = mevcut stok / minimum stok seviyesi</Text>
+            <View style={s.content}>
+                {/* ── Operasyon KPI Özeti ─────────────────────────────── */}
+                <Text style={s.section}>Operasyon Özeti</Text>
+                <View style={s.kpiRow}>
+                    <KpiCard
+                        icon="clipboard-list-outline"
+                        label="Toplam Sipariş"
+                        value={oTotal}
+                        sub={`${oCompletePct}% tamamlanma`}
+                        color={GREEN}
+                        trend={oCompletePct >= 50 ? 'up' : 'down'}
+                    />
+                    <KpiCard
+                        icon="currency-try"
+                        label="Sipariş Hacmi"
+                        value={`₺${(orderRevenue / 1000).toFixed(0)}K`}
+                        sub={`${oTotal} adet satış`}
+                        color={BLUE}
+                        trend="same"
+                    />
                 </View>
-            </View>
+                <View style={[s.kpiRow, { marginTop: 12 }]}>
+                    <KpiCard
+                        icon="swap-horizontal-bold"
+                        label="Transfer Çıkışı"
+                        value={tTotal}
+                        sub={`${tDelivered} teslim edildi`}
+                        color={PURPLE}
+                        trend={tDelivered > 0 ? 'up' : 'same'}
+                    />
+                    <KpiCard
+                        icon="truck-check-outline"
+                        label="Sevkiyat Kabul"
+                        value={`${sAcceptPct}%`}
+                        sub={`${sTotal} beklenen`}
+                        color={ORANGE}
+                        trend={sAcceptPct >= 70 ? 'up' : 'down'}
+                    />
+                </View>
 
-            <View style={{ height: 40 }} />
+                {/* ── Sipariş Durum Dağılımı ──────────────────────────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Sipariş Dağılımı</Text>
+                <View style={s.chartCard}>
+                    {oTotal === 0 ? (
+                        <Text style={s.empty}>Bu dönemde sipariş bulunmuyor</Text>
+                    ) : (
+                        <DonutBar segments={[
+                            { label: 'Tamamlandı', value: oCompleted, color: GREEN },
+                            { label: 'İşlemde', value: oProcessing, color: PURPLE },
+                            { label: 'Bekleyen', value: oPending, color: ORANGE },
+                            { label: 'İptal', value: oCancelled, color: RED },
+                        ]} />
+                    )}
+                </View>
+
+                {/* ── Günlük Sipariş Akışı (son 7 gün) ──────────────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Son 7 Gün Akışı</Text>
+                <View style={s.chartCard}>
+                    <BarChart color={GREEN} data={dailyOrderData} />
+                    <View style={s.chartLegend}>
+                        <View style={[s.legendDot, { backgroundColor: GREEN }]} />
+                        <Text style={s.legendText}>Günlük yaratılan sipariş adedi</Text>
+                    </View>
+                </View>
+
+                {/* ── Transfer Dağılımı ───────────────────────────────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Transfer Durumları</Text>
+                <View style={s.chartCard}>
+                    {tTotal === 0 ? (
+                        <Text style={s.empty}>Bu dönemde transfer bulunmuyor</Text>
+                    ) : (
+                        <DonutBar segments={[
+                            { label: 'Teslim', value: tDelivered, color: GREEN },
+                            { label: 'Yolda', value: tTransit, color: PURPLE },
+                            { label: 'Bekleyen', value: tPending, color: ORANGE },
+                            { label: 'Reddedilen', value: tRejected, color: RED },
+                        ]} />
+                    )}
+                </View>
+
+                {/* ── Sevkiyat Kabul Özeti ────────────────────────────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Sevkiyat Kabulleri</Text>
+                <View style={s.chartCard}>
+                    {sTotal === 0 ? (
+                        <Text style={s.empty}>Bu dönemde sevkiyat bulunmuyor</Text>
+                    ) : (
+                        <DonutBar segments={[
+                            { label: 'Kabul Edilen', value: sAccepted, color: GREEN },
+                            { label: 'Kısmi Kabul', value: sPartial, color: PURPLE },
+                            { label: 'Beklenen', value: sExpected, color: ORANGE },
+                            { label: 'Reddedilen', value: sRejected, color: RED },
+                        ]} />
+                    )}
+                </View>
+
+                {/* ── Stok Sağlığı ───────────────────────────────────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Stok Sağlığı</Text>
+                <View style={s.kpiRow}>
+                    <KpiCard icon="check-circle-outline" label="Normal Stok" value={okProducts.length} sub="yeterli seviye var" color={GREEN} trend="up" />
+                    <KpiCard icon="alert-outline" label="Düşük Stok" value={lowProducts.length} sub="azalan ürün sayısı" color={ORANGE} trend="down" />
+                </View>
+                <View style={[s.kpiRow, { marginTop: 12 }]}>
+                    <KpiCard icon="alert-circle-outline" label="Kritik Stok" value={criticalProducts.length} sub="sipariş verilmesi lazım" color={RED} trend="down" />
+                    <KpiCard icon="package-variant-closed" label="Toplam Satır" value={totalStock.toLocaleString('tr-TR')} sub="toplam adet ürün" color={BLUE} trend="same" />
+                </View>
+
+                {/* ── Kritik Ürün Listesi ─────────────────────────────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Kritik Ürün Takibi</Text>
+                <View style={[s.chartCard, { gap: 16 }]}>
+                    {topCritical.length === 0 ? (
+                        <Text style={s.empty}>Tüm ürünler hedef stokta 🎉</Text>
+                    ) : (
+                        topCritical.map(p => {
+                            const pct = p.minStock > 0 ? Math.min(p.stock / p.minStock, 1) : 1;
+                            const color = pct === 0 ? RED : pct < 0.5 ? RED : pct < 1 ? ORANGE : GREEN;
+                            return (
+                                <ProgressRow
+                                    key={p.id}
+                                    label={p.name}
+                                    value={p.stock}
+                                    total={p.minStock}
+                                    color={color}
+                                />
+                            );
+                        })
+                    )}
+                    <View style={s.stockNote}>
+                        <Icon source="information-outline" size={14} color="#AAA" />
+                        <Text style={s.stockNoteText}>Bar uzunluğu, minimum stok seviyesine göre orantılanmıştır.</Text>
+                    </View>
+                </View>
+
+                <View style={{ height: 60 }} />
+            </View>
         </ScrollView>
     );
 }
 
 // ─── Stiller ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#F4F6F8' },
-    scroll: { padding: 16 },
-    branchHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 16, marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#EAEAEA' },
-    branchHeaderText: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
+    root: { flex: 1, backgroundColor: '#F7F8FA' },
+    hero: { backgroundColor: GREEN, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, shadowColor: GREEN, shadowOpacity: 0.25, shadowRadius: 15, elevation: 8, zIndex: 10 },
+    heroTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
+    heroTitle: { fontSize: 24, fontWeight: '900', color: 'white', letterSpacing: -0.5 },
+    heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '500' },
+    heroIconWrap: { width: 52, height: 52, borderRadius: 18, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 2 },
 
-    periodRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-    periodChip: { flex: 1, paddingVertical: 8, borderRadius: 12, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E0E0E0', alignItems: 'center' },
-    periodText: { fontSize: 11, fontWeight: '700', color: '#555' },
+    content: { padding: 16, marginTop: -8 },
 
-    section: { fontSize: 15, fontWeight: '700', color: '#1A1A1A', marginBottom: 12 },
-    kpiRow: { flexDirection: 'row', gap: 10 },
+    section: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 14, marginLeft: 6, letterSpacing: -0.2 },
+    kpiRow: { flexDirection: 'row', gap: 12 },
 
-    chartCard: { backgroundColor: '#FFF', borderRadius: 18, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-    chartLegend: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-    legendDot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { fontSize: 11, color: '#888' },
+    chartCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 20, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F0F0F0' },
+    chartLegend: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingHorizontal: 4 },
+    legendDot: { width: 10, height: 10, borderRadius: 5 },
+    legendText: { fontSize: 12, color: '#888', fontWeight: '500' },
 
-    empty: { textAlign: 'center', color: '#AAA', fontSize: 13, paddingVertical: 20 },
+    empty: { textAlign: 'center', color: '#AAA', fontSize: 14, paddingVertical: 24, fontWeight: '600' },
 
-    stockNote: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
-    stockNoteText: { fontSize: 10, color: '#AAA' },
+    stockNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: '#F9FAFF', padding: 10, borderRadius: 10 },
+    stockNoteText: { fontSize: 11, color: '#888', fontWeight: '600', flex: 1 },
 });

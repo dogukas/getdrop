@@ -26,10 +26,15 @@ import CreateOrderScreen from '../screens/oms/CreateOrderScreen';
 import CreateTransferScreen from '../screens/transfer/CreateTransferScreen';
 import CreateShipmentScreen from '../screens/sevkiyat/CreateShipmentScreen';
 import CreateProductScreen from '../screens/StockCreateProductScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 
 import { useAuth } from '../context/AuthContext';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
 import SidebarPanel from '../components/FuturisticSidebar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { useAppStore } from '../store/useAppStore';
+import { subscribeToRealtimeChanges, unsubscribeRealtimeChanges } from '../services/realtimeService';
 
 const { width } = Dimensions.get('window');
 const Stack = createNativeStackNavigator();
@@ -183,7 +188,36 @@ const sl = StyleSheet.create({
 /* ── Root Navigator ────────────────────────────────────── */
 export default function AppNavigator() {
     const [currentRoute, setCurrentRoute] = useState('Home');
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
+    const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+    const activeBranch = useAppStore(s => s.activeBranch);
+
+    useEffect(() => {
+        const checkOnboarding = async () => {
+            try {
+                const val = await AsyncStorage.getItem('onboarding_done');
+                setHasSeenOnboarding(val === '1');
+            } catch (e) {
+                setHasSeenOnboarding(false);
+            }
+        };
+        checkOnboarding();
+    }, []);
+
+    // ── Realtime Listener ──
+    useEffect(() => {
+        if (isAuthenticated && activeBranch) {
+            subscribeToRealtimeChanges(activeBranch.id);
+        } else {
+            unsubscribeRealtimeChanges();
+        }
+
+        return () => {
+            unsubscribeRealtimeChanges();
+        };
+    }, [isAuthenticated, activeBranch]);
+
+    const isLoading = authLoading || hasSeenOnboarding === null;
 
     if (isLoading) {
         return (
@@ -201,7 +235,11 @@ export default function AppNavigator() {
             }
         }}>
             <Stack.Navigator screenOptions={{ headerShown: false }}>
-                {!isAuthenticated ? (
+                {!hasSeenOnboarding ? (
+                    <Stack.Screen name="Onboarding">
+                        {() => <OnboardingScreen onDone={() => setHasSeenOnboarding(true)} />}
+                    </Stack.Screen>
+                ) : !isAuthenticated ? (
                     // ── Auth Stack ──
                     <Stack.Screen name="Login" component={LoginScreen} />
                 ) : (

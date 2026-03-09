@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityLog, LogLevel, LogModule } from '../types/database';
 import { insertActivityLog, fetchActivityLogs } from '../services/activityService';
 import { useAppStore } from './useAppStore';
@@ -10,45 +12,54 @@ interface ActivityState {
     clearLogs: () => void;
 }
 
-export const useActivityStore = create<ActivityState>((set) => ({
-    logs: [],
+export const useActivityStore = create<ActivityState>()(
+    persist(
+        (set) => ({
+            logs: [],
 
-    loadLogs: async () => {
-        try {
-            const logs = await fetchActivityLogs(50);
-            set({ logs });
-        } catch (e) {
-            console.error('[ActivityStore] loadLogs error:', e);
+            loadLogs: async () => {
+                try {
+                    const logs = await fetchActivityLogs(50);
+                    set({ logs });
+                } catch (e) {
+                    console.error('[ActivityStore] loadLogs error:', e);
+                }
+            },
+
+            addLog: async (log) => {
+                const newLog: ActivityLog = {
+                    ...log,
+                    id: `local-${Date.now()}`,
+                    timestamp: new Date(),
+                };
+
+                // Optimistic update
+                set(s => ({ logs: [newLog, ...s.logs].slice(0, 100) }));
+
+                // Bildirim sayacı artır
+                useAppStore.getState().setUnreadCount(
+                    useAppStore.getState().unreadCount + 1
+                );
+
+                // Supabase'e yaz
+                await insertActivityLog({
+                    level: log.level,
+                    title: log.title,
+                    description: log.description,
+                    module: log.module,
+                    entityId: log.entityId,
+                    entityNo: log.entityNo,
+                    user: log.user,
+                    branchId: log.branchId,
+                });
+            },
+
+            clearLogs: () => set({ logs: [] }),
+        }),
+        {
+            name: 'getdrop-activity-storage',
+            storage: createJSONStorage(() => AsyncStorage),
+            partialize: (state) => ({ logs: state.logs }),
         }
-    },
-
-    addLog: async (log) => {
-        const newLog: ActivityLog = {
-            ...log,
-            id: `local-${Date.now()}`,
-            timestamp: new Date(),
-        };
-
-        // Optimistic update
-        set(s => ({ logs: [newLog, ...s.logs].slice(0, 100) }));
-
-        // Bildirim sayacı artır
-        useAppStore.getState().setUnreadCount(
-            useAppStore.getState().unreadCount + 1
-        );
-
-        // Supabase'e yaz
-        await insertActivityLog({
-            level: log.level,
-            title: log.title,
-            description: log.description,
-            module: log.module,
-            entityId: log.entityId,
-            entityNo: log.entityNo,
-            user: log.user,
-            branchId: log.branchId,
-        });
-    },
-
-    clearLogs: () => set({ logs: [] }),
-}));
+    )
+);

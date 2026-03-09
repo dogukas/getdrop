@@ -111,16 +111,20 @@ export default function TransferDetailScreen({ route }: Props) {
 
                 {/* Başlık */}
                 <View style={s.headerCard}>
-                    <View style={s.headerTop}>
-                        <Text style={s.tNo}>{transfer.transferNo}</Text>
-                        <View style={[s.statusBadge, { backgroundColor: `${cfg.color}18` }]}>
-                            <Icon source={cfg.icon} size={14} color={cfg.color} />
+                    <View style={[s.headerBanner, { backgroundColor: cfg.color + '18' }]}>
+                        <View style={[s.iconBox, { backgroundColor: cfg.color + '25' }]}>
+                            <Icon source={cfg.icon} size={26} color={cfg.color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={s.tNo}>{transfer.transferNo}</Text>
+                        </View>
+                        <View style={[s.statusBadge, { backgroundColor: cfg.color + '25' }]}>
                             <Text style={[s.statusText, { color: cfg.color }]}>{cfg.label}</Text>
                         </View>
                     </View>
 
                     {/* Rota Görselleştirme */}
-                    <View style={s.routeCard}>
+                    <View style={[s.routeCard, { marginHorizontal: 18 }]}>
                         <View style={s.routeStation}>
                             <View style={[s.routeDot, { backgroundColor: PURPLE }]} />
                             <Text style={s.routeLabel}>Kaynak</Text>
@@ -138,13 +142,13 @@ export default function TransferDetailScreen({ route }: Props) {
                         </View>
                     </View>
 
-                    <View style={s.infoRow}>
+                    <View style={[s.infoRow, { marginHorizontal: 18, marginBottom: 18 }]}>
                         <InfoChip icon="calendar-outline" value={transfer.plannedDate} />
                         <InfoChip icon="package-variant" value={`${transfer.items.length} kalem · ${totalQty} adet`} />
                     </View>
 
                     {transfer.notes && (
-                        <View style={s.noteBox}>
+                        <View style={[s.noteBox, { marginHorizontal: 18, marginBottom: 18 }]}>
                             <Icon source="alert-circle-outline" size={14} color={PURPLE} />
                             <Text style={s.noteText}>{transfer.notes}</Text>
                         </View>
@@ -213,7 +217,9 @@ function InfoChip({ icon, value }: { icon: string; value: string }) {
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },
     scroll: { padding: 16, gap: 16, paddingBottom: 120 },
-    headerCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 18, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4, gap: 14 },
+    headerCard: { backgroundColor: '#FFF', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, elevation: 4, gap: 0 },
+    headerBanner: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, paddingBottom: 16 },
+    iconBox: { width: 54, height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     tNo: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
     statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
