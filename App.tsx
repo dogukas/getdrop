@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Image, StyleSheet, Dimensions, Animated, LogBox } from 'react-native';
+import { View, Image, StyleSheet, Dimensions, Animated, LogBox, Appearance, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 LogBox.ignoreLogs(['[Reanimated]']); // Reanimated mismatch logs vs.
 import { PaperProvider } from 'react-native-paper';
+import { MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import { useAppStore } from './src/store/useAppStore';
-import { lightTheme, darkTheme } from './src/theme';
 import AppNavigator from './src/navigation/AppNavigator';
 import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/context/ToastContext';
@@ -18,10 +18,31 @@ SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const isDarkMode = useAppStore(s => s.isDarkMode);
-  const theme = isDarkMode ? darkTheme : lightTheme;
-  const [appIsReady, setAppIsReady] = useState(false);
+  const followSystem = useAppStore(s => s.followSystem);
+  const setDarkMode = useAppStore(s => s.setDarkMode);
+  const systemScheme = useColorScheme();
 
+  // Sistem teması değişince store'u güncelle
+  useEffect(() => {
+    if (!followSystem) return;
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
+      const store = useAppStore.getState();
+      if (store.followSystem) {
+        store.setDarkMode(colorScheme === 'dark');
+      }
+    });
+    return () => sub.remove();
+  }, [followSystem]);
+
+  // followSystem açıkken sistem değerine uyu
+  const dark = followSystem ? systemScheme === 'dark' : isDarkMode;
+  const paperTheme = dark
+    ? { ...MD3DarkTheme, colors: { ...MD3DarkTheme.colors, primary: '#2A7A50', secondary: '#6C63FF', background: '#0F1117', surface: '#1C2230' } }
+    : { ...MD3LightTheme, colors: { ...MD3LightTheme.colors, primary: '#2A7A50', secondary: '#6C63FF', background: '#F4F6F8', surface: '#FFFFFF' } };
+
+  const [appIsReady, setAppIsReady] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
+
 
   useEffect(() => {
     async function prepare() {
@@ -81,7 +102,7 @@ export default function App() {
       <ErrorBoundary>
         <AuthProvider>
           <ToastProvider>
-            <PaperProvider theme={theme}>
+            <PaperProvider theme={paperTheme}>
               <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
                 <AppNavigator />
               </View>

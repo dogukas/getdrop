@@ -10,6 +10,7 @@ import { useAppStore, ROLE_LABELS } from '../store/useAppStore';
 import { useDataStore } from '../store/useDataStore';
 import { useAuth } from '../context/AuthContext';
 import { navRef } from '../navigation/AppNavigator';
+import { useTheme } from '../theme/useTheme';
 
 const { width, height } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.76;
@@ -40,6 +41,7 @@ interface Props {
 // ── Sidebar Bileşeni ──────────────────────────────────────
 export default function SidebarPanel({ currentRoute, onNavigate }: Props) {
     const { isOpen, closeSidebar } = useSidebar();
+    const theme = useTheme();
     const { logout } = useAuth();
     const { user, isDarkMode, toggleTheme, unreadCount, branches, activeBranch, setActiveBranch } = useAppStore(
         useShallow(s => ({
@@ -107,7 +109,7 @@ export default function SidebarPanel({ currentRoute, onNavigate }: Props) {
     const roleColor = user?.role ? ROLE_COLORS[user.role] : '#888';
 
     return (
-        <View style={s.panel}>
+        <View style={[s.panel, { backgroundColor: theme.sidebarBg }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
                 {/* ── Profil Bölümü ─── */}

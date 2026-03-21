@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
+import { useTheme } from '../theme/useTheme';
 
 const GREEN = '#2A7A50';
 const PURPLE = '#6C63FF';
@@ -27,10 +28,13 @@ const NOTIF_KEYS = [
 ];
 
 export default function SettingsScreen() {
-    const { isDarkMode, toggleTheme, user, activeBranch, branches, setActiveBranch } = useAppStore(
+    const theme = useTheme();
+    const { isDarkMode, toggleTheme, followSystem, setFollowSystem, user, activeBranch, branches, setActiveBranch } = useAppStore(
         useShallow(s => ({
             isDarkMode: s.isDarkMode,
             toggleTheme: s.toggleTheme,
+            followSystem: s.followSystem,
+            setFollowSystem: s.setFollowSystem,
             user: s.user,
             activeBranch: s.activeBranch,
             branches: s.branches,
@@ -100,7 +104,7 @@ export default function SettingsScreen() {
     };
 
     return (
-        <ScrollView style={s.root} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView style={[s.root, { backgroundColor: theme.bg }]} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
             {/* Changelog Modal (inline) */}
             {showChangelog && (
@@ -136,43 +140,51 @@ export default function SettingsScreen() {
             </View>
 
             {/* GÖRÜNÜM */}
-            <Text style={s.section}>GÖRÜNÜM</Text>
-            <View style={s.card}>
+            <Text style={[s.section, { color: theme.textMuted }]}>GÖRÜNÜM</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
+                <View style={s.row}>
+                    <View style={[s.rowIconBox, { backgroundColor: '#1A7A5012' }]}>
+                        <Icon source="cellphone" size={18} color={GREEN} />
+                    </View>
+                    <Text style={[s.rowLabel, { color: theme.text }]}>Sistem Teması Takip Et</Text>
+                    <Switch value={followSystem} onValueChange={setFollowSystem} color={GREEN} />
+                </View>
+                <Divider style={{ backgroundColor: theme.divider }} />
                 <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#1A1A1A12' }]}>
                         <Icon source={isDarkMode ? 'weather-night' : 'white-balance-sunny'} size={18} color="#1A1A1A" />
                     </View>
-                    <Text style={s.rowLabel}>Karanlık Mod</Text>
-                    <Switch value={isDarkMode} onValueChange={toggleTheme} color={GREEN} />
+                    <Text style={[s.rowLabel, { color: followSystem ? theme.textMuted : theme.text }]}>Karanlık Mod</Text>
+                    <Switch value={isDarkMode} onValueChange={toggleTheme} color={GREEN} disabled={followSystem} />
                 </View>
-                <Divider />
+                <Divider style={{ backgroundColor: theme.divider }} />
                 <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#2196F312' }]}>
                         <Icon source="translate" size={18} color="#2196F3" />
                     </View>
-                    <Text style={s.rowLabel}>Dil</Text>
-                    <Text style={s.rowValue}>Türkçe</Text>
+                    <Text style={[s.rowLabel, { color: theme.text }]}>Dil</Text>
+                    <Text style={[s.rowValue, { color: theme.textMuted }]}>Türkçe</Text>
                 </View>
             </View>
 
             {/* BİLDİRİMLER */}
-            <Text style={s.section}>BİLDİRİMLER</Text>
-            <View style={s.card}>
+            <Text style={[s.section, { color: theme.textMuted }]}>BİLDİRİMLER</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
                 <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#E8A02012' }]}>
                         <Icon source="volume-high" size={18} color="#E8A020" />
                     </View>
-                    <Text style={s.rowLabel}>Sesli Uyarı</Text>
+                    <Text style={[s.rowLabel, { color: theme.text }]}>Sesli Uyarı</Text>
                     <Switch value={soundEnabled} onValueChange={setSoundEnabled} color={GREEN} />
                 </View>
                 {NOTIF_KEYS.map((n, i) => (
                     <View key={n.key}>
-                        <Divider />
+                        <Divider style={{ backgroundColor: theme.divider }} />
                         <View style={s.row}>
                             <View style={[s.rowIconBox, { backgroundColor: n.color + '15' }]}>
                                 <Icon source={n.icon} size={18} color={n.color} />
                             </View>
-                            <Text style={s.rowLabel}>{n.label}</Text>
+                            <Text style={[s.rowLabel, { color: theme.text }]}>{n.label}</Text>
                             <Switch
                                 value={notifToggles[n.key] ?? true}
                                 onValueChange={v => setNotifToggle(n.key, v)}
@@ -184,16 +196,16 @@ export default function SettingsScreen() {
             </View>
 
             {/* AKTİF ŞUBE */}
-            <Text style={s.section}>AKTİF ŞUBE</Text>
-            <View style={s.card}>
+            <Text style={[s.section, { color: theme.textMuted }]}>AKTİF ŞUBE</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
                 {branches.map((b, i) => (
                     <View key={b.id}>
-                        {i > 0 && <Divider />}
+                        {i > 0 && <Divider style={{ backgroundColor: theme.divider }} />}
                         <TouchableOpacity style={s.row} onPress={() => handleBranchChange(b.id)} activeOpacity={0.7}>
                             <View style={[s.rowIconBox, { backgroundColor: activeBranch?.id === b.id ? `${GREEN}15` : '#88888812' }]}>
                                 <Icon source="domain" size={18} color={activeBranch?.id === b.id ? GREEN : '#888'} />
                             </View>
-                            <Text style={[s.rowLabel, activeBranch?.id === b.id && { color: GREEN, fontWeight: '700' }]}>
+                            <Text style={[s.rowLabel, activeBranch?.id === b.id && { color: GREEN, fontWeight: '700' }, { color: theme.text }]}>
                                 {b.name}
                             </Text>
                             {activeBranch?.id === b.id
@@ -206,22 +218,22 @@ export default function SettingsScreen() {
             </View>
 
             {/* ENTEGRASYON */}
-            <Text style={s.section}>SİSTEM ENTEGRASYONU</Text>
-            <View style={s.card}>
+            <Text style={[s.section, { color: theme.textMuted }]}>SİSTEM ENTEGRASYONU</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
                 <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#2196F312' }]}>
                         <Icon source="database-outline" size={18} color="#2196F3" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={s.rowLabel}>Supabase DB</Text>
-                        <Text style={s.rowValueSmall}>Gerçek zamanlı bağlantı</Text>
+                        <Text style={[s.rowLabel, { color: theme.text }]}>Supabase DB</Text>
+                        <Text style={[s.rowValueSmall, { color: theme.textMuted }]}>Gerçek zamanlı bağlantı</Text>
                     </View>
                     <View style={[s.connBadge, { backgroundColor: '#2A7A5015' }]}>
                         <View style={s.connDot} />
                         <Text style={s.connText}>Aktif</Text>
                     </View>
                 </View>
-                <Divider />
+                <Divider style={{ backgroundColor: theme.divider }} />
                 <TouchableOpacity style={s.row} onPress={handleTestConnection} disabled={connTesting} activeOpacity={0.7}>
                     <View style={[s.rowIconBox, { backgroundColor: '#6C63FF12' }]}>
                         <Icon source={connTesting ? 'loading' : 'connection'} size={18} color={PURPLE} />
@@ -234,22 +246,22 @@ export default function SettingsScreen() {
             </View>
 
             {/* HAKKINDA */}
-            <Text style={s.section}>HAKKINDA</Text>
-            <View style={s.card}>
+            <Text style={[s.section, { color: theme.textMuted }]}>HAKKINDA</Text>
+            <View style={[s.card, { backgroundColor: theme.card }]}>
                 <TouchableOpacity style={s.row} onPress={() => setShowChangelog(!showChangelog)} activeOpacity={0.7}>
                     <View style={[s.rowIconBox, { backgroundColor: '#6C63FF12' }]}>
                         <Icon source="information-outline" size={18} color="#6C63FF" />
                     </View>
-                    <Text style={s.rowLabel}>Uygulama Versiyonu</Text>
+                    <Text style={[s.rowLabel, { color: theme.text }]}>Uygulama Versiyonu</Text>
                     <Text style={[s.rowValue, { color: PURPLE }]}>1.0.0 ›</Text>
                 </TouchableOpacity>
-                <Divider />
+                <Divider style={{ backgroundColor: theme.divider }} />
                 <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#E8A02012' }]}>
                         <Icon source="code-tags" size={18} color="#E8A020" />
                     </View>
-                    <Text style={s.rowLabel}>Platform</Text>
-                    <Text style={s.rowValue}>Expo / React Native</Text>
+                    <Text style={[s.rowLabel, { color: theme.text }]}>Platform</Text>
+                    <Text style={[s.rowValue, { color: theme.textMuted }]}>Expo / React Native</Text>
                 </View>
             </View>
 
@@ -265,10 +277,10 @@ export default function SettingsScreen() {
 }
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#F4F6F8' },
+    root: { flex: 1 },
     scroll: { padding: 16 },
-    section: { fontSize: 11, fontWeight: '800', color: '#AAA', letterSpacing: 1.2, marginTop: 20, marginBottom: 8, marginLeft: 4 },
-    card: { backgroundColor: '#FFF', borderRadius: 18, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+    section: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: 20, marginBottom: 8, marginLeft: 4 },
+    card: { borderRadius: 18, paddingHorizontal: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
     rowIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     rowLabel: { flex: 1, fontSize: 14, color: '#333', fontWeight: '500' },

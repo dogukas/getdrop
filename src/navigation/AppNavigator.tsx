@@ -33,6 +33,7 @@ import { useAuth } from '../context/AuthContext';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
 import SidebarPanel from '../components/FuturisticSidebar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../theme/useTheme';
 
 import { useAppStore } from '../store/useAppStore';
 import { subscribeToRealtimeChanges, unsubscribeRealtimeChanges } from '../services/realtimeService';
@@ -45,27 +46,33 @@ export { navRef };
 /* ── Hamburger Butonu ──────────────────────────────────── */
 function HamburgerButton() {
     const { isOpen, toggleSidebar } = useSidebar();
+    const theme = useTheme();
     const rot = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
     const mid = useRef(new Animated.Value(isOpen ? 0 : 1)).current;
+    const isAnimating = useRef(false);
 
     useEffect(() => {
+        isAnimating.current = true;
         Animated.parallel([
             Animated.timing(rot, { toValue: isOpen ? 1 : 0, duration: 220, useNativeDriver: true }),
             Animated.timing(mid, { toValue: isOpen ? 0 : 1, duration: 180, useNativeDriver: true }),
-        ]).start();
+        ]).start(() => { isAnimating.current = false; });
     }, [isOpen]);
 
     const r1 = rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
     const r3 = rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-45deg'] });
-
-    // Çapraz (X) şeklini tam ortalayabilmek için Y ekseninde kaydırma
     const tY1 = rot.interpolate({ inputRange: [0, 1], outputRange: [0, 7] });
     const tY3 = rot.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });
 
-    const LINE = { width: 22, height: 2, backgroundColor: '#1A1A1A', borderRadius: 2 };
+    const LINE = { width: 22, height: 2, backgroundColor: theme.text, borderRadius: 2 as number };
+
+    const handlePress = () => {
+        if (isAnimating.current) return;
+        toggleSidebar();
+    };
 
     return (
-        <TouchableOpacity onPress={toggleSidebar} style={hb.btn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={handlePress} style={hb.btn} activeOpacity={0.7}>
             <Animated.View style={[LINE, { transform: [{ translateY: tY1 }, { rotate: r1 }] }]} />
             <Animated.View style={[LINE, { opacity: mid }]} />
             <Animated.View style={[LINE, { transform: [{ translateY: tY3 }, { rotate: r3 }] }]} />
@@ -83,6 +90,8 @@ function MainAppLayout({
     setCurrentRoute: (r: string) => void;
 }) {
     const { isOpen, closeSidebar } = useSidebar();
+
+    const theme = useTheme();
 
     // Tüm animasyonlar aynı driver'da = tam senkron
     const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -116,8 +125,8 @@ function MainAppLayout({
     }
 
     return (
-        <View style={sl.root}>
-            <StatusBar barStyle="light-content" backgroundColor="#2A7A50" />
+        <View style={[sl.root, { backgroundColor: theme.sidebarBg }]}>
+            <StatusBar barStyle={theme.statusBar} backgroundColor={theme.sidebarBg} />
 
             {/* ── Sidebar paneli (her zaman arkada) ── */}
             <SidebarPanel currentRoute={currentRoute} onNavigate={navigateTo} />
@@ -127,17 +136,17 @@ function MainAppLayout({
                 style={[sl.mainOuter, { transform: [{ translateX: txAnim }, { scale: scaleAnim }] }]}
             >
                 {/* borderRadius ayrı bir iç view'da (native driver uyumsuzluğu için) */}
-                <Animated.View style={[sl.mainInner, { borderRadius: brAnim }]}>
+                <Animated.View style={[sl.mainInner, { borderRadius: brAnim, backgroundColor: theme.bg }]}>
                     <Stack.Navigator
                         initialRouteName="Home"
                         screenOptions={{
                             animation: 'slide_from_right',
-                            headerStyle: { backgroundColor: '#FFFFFF' },
-                            headerTitleStyle: { color: '#1A1A1A', fontWeight: '700', fontSize: 16 },
-                            headerTintColor: '#1A1A1A',
+                            headerStyle: { backgroundColor: theme.headerBg },
+                            headerTitleStyle: { color: theme.headerText, fontWeight: '700', fontSize: 16 },
+                            headerTintColor: theme.headerText,
                             headerShadowVisible: false,
                             headerLeft: () => <HamburgerButton />,
-                            contentStyle: { backgroundColor: '#F4F6F8' },
+                            contentStyle: { backgroundColor: theme.bg },
                         }}
                     >
                         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Ana Sayfa', headerLeft: () => <HamburgerButton /> }} />
