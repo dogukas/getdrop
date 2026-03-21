@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore';
 import { useDataStore } from '../store/useDataStore';
 import { useActivityStore } from '../store/useActivityStore';
 import { fetchBranches } from '../services/branchService';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
 interface AuthContextData {
     isAuthenticated: boolean;
@@ -49,16 +50,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Profil + branch yükle
     const loadUserProfile = async (userId: string) => {
         try {
-            const { data: profile, error } = await supabase
+            const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
                 .single();
 
+            const profile = data as any; // Temporary cast to bypass strict checking
+
             if (error || !profile) {
                 console.error('[Auth] Profil bulunamadı:', error);
                 setIsLoading(false);
                 return;
+            }
+
+            // Push Notification Token Al (Cihaz onaylıysa)
+            const token = await registerForPushNotificationsAsync();
+            if (token && profile.push_token !== token) {
+                // @ts-ignore - bypassing Supabase generated type mismatch for new column
+                await supabase
+                    .from('profiles')
+                    .update({ push_token: token })
+                    .eq('id', userId);
             }
 
             setUser({

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, RefreshControl, Animated } from 'react-native';
+import React, { useState, useRef, useMemo, memo } from 'react';
+import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, RefreshControl, Animated, FlatList } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useDataStore } from '../../store/useDataStore';
@@ -7,6 +7,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { Shipment, ShipmentStatus } from '../../types';
 import { SkeletonList } from '../../components/SkeletonLoader';
 import { EmptyState } from '../../components/EmptyState';
+import { useDebounce } from '../../hooks/useDebounce';
+import * as Haptics from 'expo-haptics';
 
 const ORANGE = '#E8A020';
 
@@ -36,6 +38,7 @@ export default function SevkiyatScreen({ navigation }: Props) {
 
     const [activeFilter, setActiveFilter] = useState<ShipmentStatus | 'all'>('all');
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 300);
     const [refreshing, setRefreshing] = useState(false);
 
     const expected = shipments.filter(s => s.status === 'expected').length;
@@ -43,18 +46,21 @@ export default function SevkiyatScreen({ navigation }: Props) {
     const rejected = shipments.filter(s => s.status === 'rejected').length;
 
     const onRefresh = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setRefreshing(true);
         await loadShipments();
         setRefreshing(false);
     };
 
-    const filtered = shipments.filter((s: Shipment) => {
-        const matchStatus = activeFilter === 'all' || s.status === activeFilter;
-        const matchSearch = s.shipmentNo.toLowerCase().includes(search.toLowerCase())
-            || s.supplier.toLowerCase().includes(search.toLowerCase())
-            || (s.plate ?? '').toLowerCase().includes(search.toLowerCase());
-        return matchStatus && matchSearch;
-    });
+    const filtered = useMemo(() => {
+        return shipments.filter((s: Shipment) => {
+            const matchStatus = activeFilter === 'all' || s.status === activeFilter;
+            const matchSearch = s.shipmentNo.toLowerCase().includes(debouncedSearch.toLowerCase())
+                || s.supplier.toLowerCase().includes(debouncedSearch.toLowerCase())
+                || (s.plate ?? '').toLowerCase().includes(debouncedSearch.toLowerCase());
+            return matchStatus && matchSearch;
+        });
+    }, [shipments, activeFilter, debouncedSearch]);
 
     return (
         <View style={s.root}>
@@ -94,7 +100,10 @@ export default function SevkiyatScreen({ navigation }: Props) {
                 {FILTERS.map((f) => {
                     const active = activeFilter === f.key;
                     return (
-                        <FilterChip key={f.key} label={f.label} active={active} activeColor={ORANGE} onPress={() => setActiveFilter(f.key)} />
+                        <FilterChip key={f.key} label={f.label} active={active} activeColor={ORANGE} onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setActiveFilter(f.key);
+                        }} />
                     );
                 })}
             </ScrollView>
@@ -103,25 +112,33 @@ export default function SevkiyatScreen({ navigation }: Props) {
                 <Text style={s.resultCount}>{filtered.length} sevkiyat</Text>
             )}
 
-            <ScrollView
+            <FlatList
+                data={filtered}
+                keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={s.list}
+                contentContainerStyle={[s.list, filtered.length === 0 && { flexGrow: 1 }]}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ORANGE} />}
-            >
-                {isLoading ? (
-                    <SkeletonList count={4} />
-                ) : filtered.length === 0 ? (
-                    <EmptyState
-                        icon="truck-off-outline"
-                        title="Sevkiyat Bulunamadı"
-                        description={activeFilter !== 'all' || search ? "Arama veya filtreye uygun sevkiyat yok." : "Henüz hiç sevkiyat kaydı yok."}
-                    />
-                ) : (
-                    filtered.map((s) => (
-                        <ShipmentCard key={s.id} shipment={s} onPress={() => navigation.push('SevkiyatDetail', { shipment: s })} />
-                    ))
+                initialNumToRender={8}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                ListEmptyComponent={
+                    isLoading ? (
+                        <SkeletonList count={4} />
+                    ) : (
+                        <EmptyState
+                            icon="truck-off-outline"
+                            title="Sevkiyat Bulunamadı"
+                            description={activeFilter !== 'all' || search ? "Arama veya filtreye uygun sevkiyat yok." : "Henüz hiç sevkiyat kaydı yok."}
+                        />
+                    )
+                }
+                renderItem={({ item }) => (
+                    <MemoShipmentCard key={item.id} shipment={item} onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        navigation.push('SevkiyatDetail', { shipment: item });
+                    }} />
                 )}
-            </ScrollView>
+            />
         </View>
     );
 }
@@ -240,6 +257,11 @@ function ShipmentCard({ shipment, onPress }: { shipment: Shipment; onPress: () =
         </Animated.View>
     );
 }
+
+const MemoShipmentCard = memo(ShipmentCard, (prev, next) => 
+    prev.shipment.id === next.shipment.id && 
+    prev.shipment.status === next.shipment.status
+);
 
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },

@@ -1,11 +1,30 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { Text, List, Divider, Switch, Icon } from 'react-native-paper';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
+import { useToast } from '../context/ToastContext';
 
 const GREEN = '#2A7A50';
+const PURPLE = '#6C63FF';
+
+const CHANGELOG = `v1.0.0 — Mart 2026
+• Gerçek zamanlı Supabase entegrasyonu
+• OMS, Transfer, Sevkiyat modülleri
+• Barkod tarayıcı desteği
+• Animasyonlu raporlar & grafikler
+• Push bildirim altyapısı
+• Karanlık mod desteği`;
+
+const NOTIF_KEYS = [
+    { key: 'notif_orders', label: 'Sipariş Bildirimleri', icon: 'clipboard-list-outline', color: GREEN },
+    { key: 'notif_transfers', label: 'Transfer Bildirimleri', icon: 'swap-horizontal-bold', color: PURPLE },
+    { key: 'notif_stock', label: 'Stok Uyarıları', icon: 'package-variant-closed', color: '#E8A020' },
+    { key: 'notif_shipment', label: 'Sevkiyat Bildirimleri', icon: 'truck-check-outline', color: '#E05C5C' },
+];
 
 export default function SettingsScreen() {
     const { isDarkMode, toggleTheme, user, activeBranch, branches, setActiveBranch } = useAppStore(
@@ -19,8 +38,37 @@ export default function SettingsScreen() {
         }))
     );
     const { logout } = useAuth();
-    const [notifEnabled, setNotifEnabled] = useState(true);
+    const { showToast } = useToast();
     const [soundEnabled, setSoundEnabled] = useState(true);
+    const [connTesting, setConnTesting] = useState(false);
+    const [showChangelog, setShowChangelog] = useState(false);
+
+    // Bildirim toggle state'leri
+    const [notifToggles, setNotifToggles] = useState<Record<string, boolean>>({
+        notif_orders: true,
+        notif_transfers: true,
+        notif_stock: true,
+        notif_shipment: true,
+    });
+
+    // AsyncStorage'dan yükle
+    useEffect(() => {
+        const loadToggles = async () => {
+            try {
+                const saved = await AsyncStorage.getItem('notif_toggles');
+                if (saved) setNotifToggles(JSON.parse(saved));
+            } catch { }
+        };
+        loadToggles();
+    }, []);
+
+    const setNotifToggle = async (key: string, value: boolean) => {
+        const next = { ...notifToggles, [key]: value };
+        setNotifToggles(next);
+        try {
+            await AsyncStorage.setItem('notif_toggles', JSON.stringify(next));
+        } catch { }
+    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -38,8 +86,34 @@ export default function SettingsScreen() {
         if (b) { setActiveBranch(b); }
     };
 
+    const handleTestConnection = async () => {
+        setConnTesting(true);
+        try {
+            const { error } = await supabase.from('products').select('id').limit(1);
+            if (error) throw error;
+            showToast({ message: '✅ Bağlantı başarılı!', type: 'success' });
+        } catch (e: any) {
+            showToast({ message: `❌ Bağlantı hatası: ${e.message ?? 'Bilinmeyen hata'}`, type: 'error' });
+        } finally {
+            setConnTesting(false);
+        }
+    };
+
     return (
         <ScrollView style={s.root} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+            {/* Changelog Modal (inline) */}
+            {showChangelog && (
+                <View style={s.changelogCard}>
+                    <View style={s.changelogHeader}>
+                        <Text style={s.changelogTitle}>Sürüm Notları</Text>
+                        <TouchableOpacity onPress={() => setShowChangelog(false)}>
+                            <Icon source="close" size={20} color="#888" />
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={s.changelogText}>{CHANGELOG}</Text>
+                </View>
+            )}
 
             {/* Hesap Bilgisi - Hero Banner */}
             <View style={s.heroCard}>
@@ -85,20 +159,28 @@ export default function SettingsScreen() {
             <Text style={s.section}>BİLDİRİMLER</Text>
             <View style={s.card}>
                 <View style={s.row}>
-                    <View style={[s.rowIconBox, { backgroundColor: '#E05C5C12' }]}>
-                        <Icon source="bell-outline" size={18} color="#E05C5C" />
-                    </View>
-                    <Text style={s.rowLabel}>Push Bildirimler</Text>
-                    <Switch value={notifEnabled} onValueChange={setNotifEnabled} color={GREEN} />
-                </View>
-                <Divider />
-                <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#E8A02012' }]}>
                         <Icon source="volume-high" size={18} color="#E8A020" />
                     </View>
                     <Text style={s.rowLabel}>Sesli Uyarı</Text>
                     <Switch value={soundEnabled} onValueChange={setSoundEnabled} color={GREEN} />
                 </View>
+                {NOTIF_KEYS.map((n, i) => (
+                    <View key={n.key}>
+                        <Divider />
+                        <View style={s.row}>
+                            <View style={[s.rowIconBox, { backgroundColor: n.color + '15' }]}>
+                                <Icon source={n.icon} size={18} color={n.color} />
+                            </View>
+                            <Text style={s.rowLabel}>{n.label}</Text>
+                            <Switch
+                                value={notifToggles[n.key] ?? true}
+                                onValueChange={v => setNotifToggle(n.key, v)}
+                                color={n.color}
+                            />
+                        </View>
+                    </View>
+                ))}
             </View>
 
             {/* AKTİF ŞUBE */}
@@ -123,16 +205,44 @@ export default function SettingsScreen() {
                 ))}
             </View>
 
+            {/* ENTEGRASYON */}
+            <Text style={s.section}>SİSTEM ENTEGRASYONU</Text>
+            <View style={s.card}>
+                <View style={s.row}>
+                    <View style={[s.rowIconBox, { backgroundColor: '#2196F312' }]}>
+                        <Icon source="database-outline" size={18} color="#2196F3" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={s.rowLabel}>Supabase DB</Text>
+                        <Text style={s.rowValueSmall}>Gerçek zamanlı bağlantı</Text>
+                    </View>
+                    <View style={[s.connBadge, { backgroundColor: '#2A7A5015' }]}>
+                        <View style={s.connDot} />
+                        <Text style={s.connText}>Aktif</Text>
+                    </View>
+                </View>
+                <Divider />
+                <TouchableOpacity style={s.row} onPress={handleTestConnection} disabled={connTesting} activeOpacity={0.7}>
+                    <View style={[s.rowIconBox, { backgroundColor: '#6C63FF12' }]}>
+                        <Icon source={connTesting ? 'loading' : 'connection'} size={18} color={PURPLE} />
+                    </View>
+                    <Text style={[s.rowLabel, { color: PURPLE }]}>
+                        {connTesting ? 'Test Ediliyor...' : 'Bağlantı Test Et'}
+                    </Text>
+                    <Icon source="chevron-right" size={18} color="#DDD" />
+                </TouchableOpacity>
+            </View>
+
             {/* HAKKINDA */}
             <Text style={s.section}>HAKKINDA</Text>
             <View style={s.card}>
-                <View style={s.row}>
+                <TouchableOpacity style={s.row} onPress={() => setShowChangelog(!showChangelog)} activeOpacity={0.7}>
                     <View style={[s.rowIconBox, { backgroundColor: '#6C63FF12' }]}>
                         <Icon source="information-outline" size={18} color="#6C63FF" />
                     </View>
                     <Text style={s.rowLabel}>Uygulama Versiyonu</Text>
-                    <Text style={s.rowValue}>1.0.0</Text>
-                </View>
+                    <Text style={[s.rowValue, { color: PURPLE }]}>1.0.0 ›</Text>
+                </TouchableOpacity>
                 <Divider />
                 <View style={s.row}>
                     <View style={[s.rowIconBox, { backgroundColor: '#E8A02012' }]}>
@@ -163,6 +273,10 @@ const s = StyleSheet.create({
     rowIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     rowLabel: { flex: 1, fontSize: 14, color: '#333', fontWeight: '500' },
     rowValue: { fontSize: 13, color: '#888', fontWeight: '600' },
+    rowValueSmall: { fontSize: 11, color: '#AAA', marginTop: 1 },
+    connBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+    connDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN },
+    connText: { fontSize: 11, fontWeight: '700', color: GREEN },
     // Hero Hesap Kartı
     heroCard: { backgroundColor: '#2A7A50', borderRadius: 20, padding: 18, marginBottom: 0, flexDirection: 'row', alignItems: 'center', gap: 14, overflow: 'hidden' },
     heroBg: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.07)', right: -30, top: -40 },
@@ -174,8 +288,13 @@ const s = StyleSheet.create({
     userEmail: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
     roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)' },
     roleText: { fontSize: 10, fontWeight: '800', color: 'white' },
-    // Eskiden kalan (artık heroCard kullanıyor)
-    avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16 },
+    // Changelog
+    changelogCard: { backgroundColor: '#1A1A2E', borderRadius: 18, padding: 18, marginBottom: 16 },
+    changelogHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    changelogTitle: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+    changelogText: { fontSize: 12, color: '#BFC8D4', lineHeight: 20, fontFamily: 'monospace' },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 24, backgroundColor: '#E05C5C12', borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#E05C5C30' },
     logoutText: { fontSize: 14, fontWeight: '700', color: '#E05C5C' },
+    // Legacy
+    avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16 },
 });

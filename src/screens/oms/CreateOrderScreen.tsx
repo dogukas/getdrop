@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
     View, ScrollView, StyleSheet, TouchableOpacity, Alert,
-    KeyboardAvoidingView, Platform, Animated,
+    KeyboardAvoidingView, Platform, Animated, FlatList, TextInput as RNTextInput,
 } from 'react-native';
 import { Text, TextInput, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -48,6 +48,7 @@ const STEPS = ['Müşteri Bilgisi', 'Kalemler', 'Özet'];
 export default function CreateOrderScreen({ navigation }: Props) {
     const user = useAppStore(s => s.user);
     const activeBranch = useAppStore(s => s.activeBranch);
+    const orders = useDataStore(s => s.orders);
     const loadOrders = useDataStore(s => s.loadOrders);
     const addLog = useActivityStore(s => s.addLog);
     const { showToast } = useToast();
@@ -61,6 +62,30 @@ export default function CreateOrderScreen({ navigation }: Props) {
         { productName: '', sku: '', quantity: '1', unitPrice: '0' },
     ]);
     const [loading, setLoading] = useState(false);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    // Önceki müşterileri siparişlerden topla (tekrar yok, en son adresini al)
+    const customerHistory = useMemo(() => {
+        const map = new Map<string, string>();
+        [...orders].reverse().forEach(o => {
+            if (!map.has(o.customer)) map.set(o.customer, o.address ?? '');
+        });
+        return Array.from(map.entries()).map(([name, addr]) => ({ name, address: addr }));
+    }, [orders]);
+
+    const suggestions = useMemo(() => {
+        if (!customer.trim() || customer.length < 1) return [];
+        return customerHistory.filter(c =>
+            c.name.toLowerCase().includes(customer.toLowerCase())
+        ).slice(0, 5);
+    }, [customer, customerHistory]);
+
+    const selectSuggestion = (name: string, addr: string) => {
+        setCustomer(name);
+        if (addr) setAddress(addr);
+        setShowSuggestions(false);
+        setErrors(e => ({ ...e, customer: '', address: '' }));
+    };
 
     // Barkod okuyucu state: null ise kapalı, number ise o index'teki item'ın barkodu okunuyor
     const [scanningItemIndex, setScanningItemIndex] = useState<number | null>(null);
@@ -144,7 +169,6 @@ export default function CreateOrderScreen({ navigation }: Props) {
 
             <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-                {/* Step 0: Müşteri Bilgisi */}
                 {step === 0 && (
                     <View style={s.card}>
                         <View style={s.cardHeader}>
@@ -153,13 +177,59 @@ export default function CreateOrderScreen({ navigation }: Props) {
                             </View>
                             <Text style={s.cardTitle}>Müşteri Bilgisi</Text>
                         </View>
-                        <FieldInput
-                            label="Müşteri Adı *"
-                            value={customer}
-                            onChangeText={(v: string) => { setCustomer(v); setErrors(e => ({ ...e, customer: '' })); }}
-                            error={errors.customer}
-                            icon="account-outline"
-                        />
+
+                        {/* Müşteri adı — Autocomplete */}
+                        <View style={fi2.wrap}>
+                            <View style={[fi2.inputBox, errors.customer && { borderColor: '#E05C5C', borderWidth: 1.5 }]}>
+                                <View style={fi2.iconWrap}>
+                                    <Icon source="account-outline" size={16} color={customer ? GREEN : '#AAA'} />
+                                </View>
+                                <TextInput
+                                    mode="flat"
+                                    label="Müşteri Adı *"
+                                    value={customer}
+                                    onChangeText={(v: string) => {
+                                        setCustomer(v);
+                                        setShowSuggestions(true);
+                                        setErrors(e => ({ ...e, customer: '' }));
+                                    }}
+                                    onFocus={() => setShowSuggestions(true)}
+                                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                    underlineColor="transparent"
+                                    activeUnderlineColor="transparent"
+                                    style={fi2.input}
+                                    theme={{ colors: { background: 'transparent' } }}
+                                />
+                                {customer.length > 0 && (
+                                    <TouchableOpacity onPress={() => { setCustomer(''); setAddress(''); }} style={{ padding: 10 }}>
+                                        <Icon source="close-circle" size={16} color="#CCC" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            {errors.customer ? <Text style={fi2.error}>{errors.customer}</Text> : null}
+
+                            {/* Autocomplete dropdown */}
+                            {showSuggestions && suggestions.length > 0 && (
+                                <View style={ac.dropdown}>
+                                    {suggestions.map((sg, idx) => (
+                                        <TouchableOpacity
+                                            key={idx}
+                                            style={[ac.item, idx < suggestions.length - 1 && ac.itemBorder]}
+                                            onPress={() => selectSuggestion(sg.name, sg.address)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Icon source="account-clock-outline" size={14} color={GREEN} />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={ac.itemName}>{sg.name}</Text>
+                                                {sg.address ? <Text style={ac.itemAddr} numberOfLines={1}>{sg.address}</Text> : null}
+                                            </View>
+                                            <Icon source="arrow-top-left" size={12} color="#CCC" />
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+
                         <FieldInput
                             label="Teslimat Adresi *"
                             value={address}
@@ -339,6 +409,27 @@ const fi = StyleSheet.create({
     input: { flex: 1, backgroundColor: 'transparent', fontSize: 14 },
     error: { fontSize: 11, color: '#E05C5C', marginTop: 3, marginLeft: 4 },
 });
+
+const fi2 = StyleSheet.create({
+    wrap: { marginBottom: 10, position: 'relative', zIndex: 10 },
+    inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F7F8FA', borderRadius: 14, borderWidth: 1, borderColor: '#EAEAEA', paddingLeft: 10 },
+    iconWrap: { marginTop: 6 },
+    input: { flex: 1, backgroundColor: 'transparent', fontSize: 14 },
+    error: { fontSize: 11, color: '#E05C5C', marginTop: 3, marginLeft: 4 },
+});
+
+const ac = StyleSheet.create({
+    dropdown: {
+        backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: '#EAEAEA',
+        shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, elevation: 6,
+        marginTop: 4, overflow: 'hidden',
+    },
+    item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+    itemBorder: { borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+    itemName: { fontSize: 13, fontWeight: '700', color: '#1A1A1A' },
+    itemAddr: { fontSize: 11, color: '#AAA', marginTop: 1 },
+});
+
 
 function SummaryRow({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
     return (

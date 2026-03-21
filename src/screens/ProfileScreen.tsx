@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Animated, Alert } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Animated, Alert, Modal } from 'react-native';
 import { Text, Icon, Switch, Divider } from 'react-native-paper';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore, ROLE_LABELS } from '../store/useAppStore';
 import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const GREEN = '#2A7A50';
 const PURPLE = '#6C63FF';
@@ -13,6 +14,13 @@ const ROLE_COLORS: Record<string, string> = {
     operator: GREEN,
     viewer: '#888',
 };
+
+const AVATAR_COLORS = [
+    '#2A7A50', '#6C63FF', '#E05C5C', '#E8A020',
+    '#2196F3', '#FF5F96', '#00BCD4', '#FF7043',
+];
+
+const AVATAR_STORAGE_KEY = 'profile_avatar_color';
 
 export default function ProfileScreen() {
     const { user, isDarkMode, toggleTheme, activeBranch } = useAppStore(
@@ -24,6 +32,18 @@ export default function ProfileScreen() {
         }))
     );
     const { logout } = useAuth();
+    const [avatarColor, setAvatarColor] = useState(GREEN);
+    const [showColorPicker, setShowColorPicker] = useState(false);
+
+    useEffect(() => {
+        AsyncStorage.getItem(AVATAR_STORAGE_KEY).then(c => { if (c) setAvatarColor(c); }).catch(() => { });
+    }, []);
+
+    const selectColor = async (color: string) => {
+        setAvatarColor(color);
+        setShowColorPicker(false);
+        try { await AsyncStorage.setItem(AVATAR_STORAGE_KEY, color); } catch { }
+    };
 
     const roleColor = user?.role ? (ROLE_COLORS[user.role] ?? '#888') : '#888';
     const roleLabel = user?.role ? ((ROLE_LABELS as any)[user.role] ?? user.role) : '';
@@ -39,25 +59,53 @@ export default function ProfileScreen() {
     return (
         <ScrollView style={s.root} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
+            {/* Avatar Renk Seçici Modal */}
+            <Modal visible={showColorPicker} transparent animationType="fade" onRequestClose={() => setShowColorPicker(false)}>
+                <TouchableOpacity style={cp.overlay} onPress={() => setShowColorPicker(false)} activeOpacity={1}>
+                    <View style={cp.modal}>
+                        <Text style={cp.title}>Avatar Rengi Seç</Text>
+                        <View style={cp.grid}>
+                            {AVATAR_COLORS.map(color => (
+                                <TouchableOpacity
+                                    key={color}
+                                    style={[cp.swatch, { backgroundColor: color }, avatarColor === color && cp.swatchActive]}
+                                    onPress={() => selectColor(color)}
+                                    activeOpacity={0.8}
+                                >
+                                    {avatarColor === color && <Icon source="check" size={20} color="#FFF" />}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
             {/* Hero Avatar Alanı */}
-            <View style={s.hero}>
-                {/* Arka dekoratif daire */}
+            <View style={[s.hero, { backgroundColor: avatarColor }]}>
                 <View style={s.heroBg} />
 
-                <View style={s.avatarWrap}>
+                <TouchableOpacity
+                    style={s.avatarWrap}
+                    onPress={() => setShowColorPicker(true)}
+                    activeOpacity={0.85}
+                >
                     <View style={s.avatar}>
                         <Text style={s.avatarText}>{initials}</Text>
                     </View>
+                    {/* Düzenleme badge */}
+                    <View style={s.editBadge}>
+                        <Icon source="palette-outline" size={10} color="#FFF" />
+                    </View>
                     <View style={s.onlineDot} />
-                </View>
+                </TouchableOpacity>
 
                 <Text style={s.heroName}>{user?.name ?? 'Kullanıcı'}</Text>
                 <Text style={s.heroEmail}>{user?.email ?? '—'}</Text>
 
                 <View style={s.heroBadgeRow}>
-                    <View style={[s.roleBadge, { backgroundColor: roleColor + '20' }]}>
-                        <View style={[s.roleDot, { backgroundColor: roleColor }]} />
-                        <Text style={[s.roleText, { color: roleColor }]}>{roleLabel}</Text>
+                    <View style={[s.roleBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                        <View style={[s.roleDot, { backgroundColor: '#FFF' }]} />
+                        <Text style={[s.roleText, { color: '#FFF' }]}>{roleLabel}</Text>
                     </View>
                     {activeBranch && (
                         <View style={s.branchBadge}>
@@ -65,6 +113,12 @@ export default function ProfileScreen() {
                             <Text style={s.branchBadgeText}>{activeBranch.name}</Text>
                         </View>
                     )}
+                </View>
+
+                {/* Renk seçme ipucu */}
+                <View style={s.colorHint}>
+                    <Icon source="palette-outline" size={12} color="rgba(255,255,255,0.7)" />
+                    <Text style={s.colorHintText}>Avatar'a dokun → renk seç</Text>
                 </View>
             </View>
 
@@ -152,30 +206,43 @@ const sr = StyleSheet.create({
     value: { fontSize: 13, color: '#888', fontWeight: '600', maxWidth: 140 },
 });
 
+/* ── Color Picker Styles ─────────────────────────────────── */
+const cp = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modal: { backgroundColor: '#FFF', borderRadius: 24, padding: 24, width: '80%', maxWidth: 320, gap: 18, alignItems: 'center' },
+    title: { fontSize: 16, fontWeight: '800', color: '#1A1A1A' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' },
+    swatch: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 },
+    swatchActive: { borderWidth: 3, borderColor: '#FFF', transform: [{ scale: 1.08 }] },
+});
+
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },
     scroll: { paddingBottom: 32 },
 
     // Hero
-    hero: { backgroundColor: GREEN, alignItems: 'center', paddingTop: 40, paddingBottom: 36, overflow: 'hidden' },
+    hero: { alignItems: 'center', paddingTop: 40, paddingBottom: 30, overflow: 'hidden' },
     heroBg: { position: 'absolute', width: 280, height: 280, borderRadius: 140, backgroundColor: 'rgba(255,255,255,0.07)', top: -80 },
     avatarWrap: { position: 'relative', marginBottom: 12 },
     avatar: {
         width: 88, height: 88, borderRadius: 44,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)',
+        backgroundColor: 'rgba(255,255,255,0.25)',
+        borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)',
         alignItems: 'center', justifyContent: 'center',
     },
     avatarText: { fontSize: 28, fontWeight: '800', color: 'white' },
-    onlineDot: { position: 'absolute', right: 3, bottom: 3, width: 14, height: 14, borderRadius: 7, backgroundColor: '#4CAF50', borderWidth: 2.5, borderColor: GREEN },
+    editBadge: { position: 'absolute', right: 0, top: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+    onlineDot: { position: 'absolute', right: 3, bottom: 3, width: 14, height: 14, borderRadius: 7, backgroundColor: '#4CAF50', borderWidth: 2.5, borderColor: 'transparent' },
     heroName: { fontSize: 22, fontWeight: '800', color: 'white', marginBottom: 4 },
-    heroEmail: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 12 },
+    heroEmail: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 12 },
     heroBadgeRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
     roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
     roleDot: { width: 6, height: 6, borderRadius: 3 },
     roleText: { fontSize: 11, fontWeight: '700' },
     branchBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
     branchBadgeText: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
+    colorHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, opacity: 0.7 },
+    colorHintText: { fontSize: 10.5, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
 
     // Stat row
     statRow: { flexDirection: 'row', backgroundColor: '#FFF', marginHorizontal: 16, marginTop: -22, borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, elevation: 6 },

@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, RefreshControl, Animated } from 'react-native';
+import React, { useState, useRef, useMemo, memo } from 'react';
+import { View, ScrollView, StyleSheet, TouchableOpacity, TextInput, RefreshControl, Animated, FlatList } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useDataStore } from '../../store/useDataStore';
@@ -7,6 +7,8 @@ import { useAppStore } from '../../store/useAppStore';
 import { Transfer, TransferStatus } from '../../types';
 import { SkeletonList } from '../../components/SkeletonLoader';
 import { EmptyState } from '../../components/EmptyState';
+import { useDebounce } from '../../hooks/useDebounce';
+import * as Haptics from 'expo-haptics';
 
 const PURPLE = '#6C63FF';
 
@@ -36,6 +38,7 @@ export default function TransferScreen({ navigation }: Props) {
 
     const [activeFilter, setActiveFilter] = useState<TransferStatus | 'all'>('all');
     const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 300);
     const [refreshing, setRefreshing] = useState(false);
 
     const pending = transfers.filter(t => t.status === 'pending').length;
@@ -43,18 +46,21 @@ export default function TransferScreen({ navigation }: Props) {
     const delivered = transfers.filter(t => t.status === 'delivered').length;
 
     const onRefresh = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setRefreshing(true);
         await loadTransfers();
         setRefreshing(false);
     };
 
-    const filtered = transfers.filter((t: Transfer) => {
-        const matchStatus = activeFilter === 'all' || t.status === activeFilter;
-        const matchSearch = t.transferNo.toLowerCase().includes(search.toLowerCase())
-            || t.sourceWarehouse.toLowerCase().includes(search.toLowerCase())
-            || t.targetWarehouse.toLowerCase().includes(search.toLowerCase());
-        return matchStatus && matchSearch;
-    });
+    const filtered = useMemo(() => {
+        return transfers.filter((t: Transfer) => {
+            const matchStatus = activeFilter === 'all' || t.status === activeFilter;
+            const matchSearch = t.transferNo.toLowerCase().includes(debouncedSearch.toLowerCase())
+                || t.sourceWarehouse.toLowerCase().includes(debouncedSearch.toLowerCase())
+                || t.targetWarehouse.toLowerCase().includes(debouncedSearch.toLowerCase());
+            return matchStatus && matchSearch;
+        });
+    }, [transfers, activeFilter, debouncedSearch]);
 
     return (
         <View style={s.root}>
@@ -94,7 +100,10 @@ export default function TransferScreen({ navigation }: Props) {
                 {FILTERS.map((f) => {
                     const active = activeFilter === f.key;
                     return (
-                        <FilterChip key={f.key} label={f.label} active={active} activeColor={PURPLE} onPress={() => setActiveFilter(f.key)} />
+                        <FilterChip key={f.key} label={f.label} active={active} activeColor={PURPLE} onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setActiveFilter(f.key);
+                        }} />
                     );
                 })}
             </ScrollView>
@@ -103,25 +112,33 @@ export default function TransferScreen({ navigation }: Props) {
                 <Text style={s.resultCount}>{filtered.length} transfer</Text>
             )}
 
-            <ScrollView
+            <FlatList
+                data={filtered}
+                keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={s.list}
+                contentContainerStyle={[s.list, filtered.length === 0 && { flexGrow: 1 }]}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PURPLE} />}
-            >
-                {isLoading ? (
-                    <SkeletonList count={4} />
-                ) : filtered.length === 0 ? (
-                    <EmptyState
-                        icon="swap-horizontal"
-                        title="Transfer Bulunamadı"
-                        description={activeFilter !== 'all' || search ? "Arama veya filtreye uygun transfer yok." : "Henüz hiç depo transfer kaydı yok."}
-                    />
-                ) : (
-                    filtered.map((t) => (
-                        <TransferCard key={t.id} transfer={t} onPress={() => navigation.push('TransferDetail', { transfer: t })} />
-                    ))
+                initialNumToRender={8}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                ListEmptyComponent={
+                    isLoading ? (
+                        <SkeletonList count={4} />
+                    ) : (
+                        <EmptyState
+                            icon="swap-horizontal"
+                            title="Transfer Bulunamadı"
+                            description={activeFilter !== 'all' || search ? "Arama veya filtreye uygun transfer yok." : "Henüz hiç depo transfer kaydı yok."}
+                        />
+                    )
+                }
+                renderItem={({ item }) => (
+                    <MemoTransferCard key={item.id} transfer={item} onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        navigation.push('TransferDetail', { transfer: item });
+                    }} />
                 )}
-            </ScrollView>
+            />
         </View>
     );
 }
@@ -237,6 +254,11 @@ function TransferCard({ transfer, onPress }: { transfer: Transfer; onPress: () =
         </Animated.View>
     );
 }
+
+const MemoTransferCard = memo(TransferCard, (prev, next) => 
+    prev.transfer.id === next.transfer.id && 
+    prev.transfer.status === next.transfer.status
+);
 
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F4F6F8' },

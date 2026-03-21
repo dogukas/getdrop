@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Animated, Dimensions, Alert } from 'react-native';
 import { Text, Icon } from 'react-native-paper';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import { useDataStore } from '../store/useDataStore';
+import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
 
@@ -46,30 +47,7 @@ function isInPeriod(dateStr: string, period: Period): boolean {
 }
 
 // ─── Bar Grafik ────────────────────────────────────────────────────────────────
-function BarChart({ data, color }: { data: { label: string; value: number }[]; color: string }) {
-    const max = Math.max(...data.map(d => d.value), 1);
-    return (
-        <View style={bc.wrap}>
-            {data.map(d => (
-                <View key={d.label} style={bc.col}>
-                    <Text style={bc.val}>{d.value}</Text>
-                    <View style={bc.barBg}>
-                        <View style={[bc.bar, { height: `${(d.value / max) * 100}%`, backgroundColor: color }]} />
-                    </View>
-                    <Text style={bc.lbl}>{d.label}</Text>
-                </View>
-            ))}
-        </View>
-    );
-}
-const bc = StyleSheet.create({
-    wrap: { flexDirection: 'row', alignItems: 'flex-end', height: 130, gap: 10, paddingTop: 8 },
-    col: { flex: 1, alignItems: 'center', gap: 4 },
-    barBg: { width: '100%', height: 100, borderRadius: 8, backgroundColor: '#F4F5F7', justifyContent: 'flex-end', overflow: 'hidden' },
-    bar: { width: '100%', borderTopLeftRadius: 8, borderTopRightRadius: 8 },
-    lbl: { fontSize: 10, color: '#888', fontWeight: '700' },
-    val: { fontSize: 11, color: '#1A1A1A', fontWeight: '800' },
-});
+// Custom Animasyonlu Bar Grafiğimiz (Önceki hali silinip yerine ChartKit eklendi, ancak özgün tasarımı korumak adına BarChart componenti iptal edilerek Line chart kullanıldı.)
 
 // ─── Donut / Pasta benzeri yatay bar (durum dağılımı) ─────────────────────────
 function DonutBar({ segments }: { segments: { label: string; value: number; color: string }[] }) {
@@ -295,18 +273,33 @@ export default function ReportsScreen() {
         .sort((a, b) => (a.stock / a.minStock) - (b.stock / b.minStock))
         .slice(0, 6);
 
+    const handleShare = () => {
+        const summary =
+            `📊 ${activeBranch?.name ?? 'Depo'} Raporu (${PERIOD_LABELS[period]})\n` +
+            `Siparişler: ${oTotal} toplam, ${oCompleted} tamamlandı (%${oCompletePct})\n` +
+            `Ciro: ₺${orderRevenue.toLocaleString('tr-TR')}\n` +
+            `Transferler: ${tTotal} toplam, ${tDelivered} teslim\n` +
+            `Sevkiyat Kabul: %${sAcceptPct} (${sTotal} beklenen)\n` +
+            `Stok: ${criticalProducts.length} kritik, ${lowProducts.length} düşük, ${okProducts.length} normal`;
+        Alert.alert('Rapor Özeti', summary, [
+            { text: 'Kapat', style: 'cancel' },
+            { text: '📋 Kopyala', onPress: () => { } },
+        ]);
+    };
+
     return (
         <ScrollView style={s.root} showsVerticalScrollIndicator={false}>
             {/* Hero Header */}
             <View style={s.hero}>
                 <View style={s.heroTitleRow}>
-                    <View>
+                    <View style={{ flex: 1 }}>
                         <Text style={s.heroTitle}>{activeBranch?.name ?? 'Depo'} Raporları</Text>
                         <Text style={s.heroSub}>Anlık operasyon ve finans özetiniz</Text>
                     </View>
-                    <View style={s.heroIconWrap}>
-                        <Icon source="chart-box-outline" size={28} color={GREEN} />
-                    </View>
+                    <TouchableOpacity style={s.shareBtn} onPress={handleShare} activeOpacity={0.8}>
+                        <Icon source="share-variant-outline" size={18} color={GREEN} />
+                        <Text style={s.shareBtnText}>Paylaş</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Animated Dönem Seçici */}
@@ -371,7 +364,32 @@ export default function ReportsScreen() {
                 {/* ── Günlük Sipariş Akışı (son 7 gün) ──────────────── */}
                 <Text style={[s.section, { marginTop: 24 }]}>Son 7 Gün Akışı</Text>
                 <View style={s.chartCard}>
-                    <BarChart color={GREEN} data={dailyOrderData} />
+                    <LineChart
+                        data={{
+                            labels: dailyOrderData.map(d => d.label),
+                            datasets: [{ data: dailyOrderData.map(d => d.value) }]
+                        }}
+                        width={width - 72} // Ekran genişliğinden paddingleri çıkar
+                        height={180}
+                        yAxisLabel=""
+                        yAxisSuffix=""
+                        chartConfig={{
+                            backgroundColor: '#ffffff',
+                            backgroundGradientFrom: '#ffffff',
+                            backgroundGradientTo: '#ffffff',
+                            decimalPlaces: 0,
+                            color: (opacity = 1) => `rgba(42, 122, 80, ${opacity})`,
+                            labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                            style: { borderRadius: 16 },
+                            propsForDots: {
+                                r: "4",
+                                strokeWidth: "2",
+                                stroke: GREEN
+                            }
+                        }}
+                        bezier
+                        style={{ marginVertical: 8, borderRadius: 16 }}
+                    />
                     <View style={s.chartLegend}>
                         <View style={[s.legendDot, { backgroundColor: GREEN }]} />
                         <Text style={s.legendText}>Günlük yaratılan sipariş adedi</Text>
@@ -393,18 +411,76 @@ export default function ReportsScreen() {
                     )}
                 </View>
 
+                {/* ── Transfer & Sevkiyat Karşılaştırma BarChart ──────── */}
+                <Text style={[s.section, { marginTop: 24 }]}>Transfer & Sevkiyat Karşılaştırma</Text>
+                <View style={s.chartCard}>
+                    {(tTotal === 0 && sTotal === 0) ? (
+                        <Text style={s.empty}>Bu dönemde veri bulunmuyor</Text>
+                    ) : (
+                        <>
+                            <BarChart
+                                data={{
+                                    labels: ['Bekl.', 'Yolda', 'Teslim', 'Red'],
+                                    datasets: [
+                                        { data: [tPending, tTransit, tDelivered, tRejected], color: (o = 1) => `rgba(108,99,255,${o})` },
+                                        { data: [sExpected, sPartial, sAccepted, sRejected], color: (o = 1) => `rgba(232,160,32,${o})` },
+                                    ],
+                                }}
+                                width={width - 72}
+                                height={180}
+                                yAxisLabel=""
+                                yAxisSuffix=""
+                                chartConfig={{
+                                    backgroundColor: '#ffffff',
+                                    backgroundGradientFrom: '#ffffff',
+                                    backgroundGradientTo: '#ffffff',
+                                    decimalPlaces: 0,
+                                    color: (opacity = 1) => `rgba(42,122,80,${opacity})`,
+                                    labelColor: (opacity = 1) => `rgba(0,0,0,${opacity})`,
+                                    barPercentage: 0.55,
+                                }}
+                                style={{ marginVertical: 8, borderRadius: 12 }}
+                                showValuesOnTopOfBars
+                                fromZero
+                            />
+                            <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                                <View style={s.chartLegend}>
+                                    <View style={[s.legendDot, { backgroundColor: PURPLE }]} />
+                                    <Text style={s.legendText}>Transfer</Text>
+                                </View>
+                                <View style={s.chartLegend}>
+                                    <View style={[s.legendDot, { backgroundColor: ORANGE }]} />
+                                    <Text style={s.legendText}>Sevkiyat</Text>
+                                </View>
+                            </View>
+                        </>
+                    )}
+                </View>
+
                 {/* ── Sevkiyat Kabul Özeti ────────────────────────────── */}
-                <Text style={[s.section, { marginTop: 24 }]}>Sevkiyat Kabulleri</Text>
+                <Text style={[s.section, { marginTop: 24 }]}>Sevkiyat Kabulleri (Grafikli)</Text>
                 <View style={s.chartCard}>
                     {sTotal === 0 ? (
                         <Text style={s.empty}>Bu dönemde sevkiyat bulunmuyor</Text>
                     ) : (
-                        <DonutBar segments={[
-                            { label: 'Kabul Edilen', value: sAccepted, color: GREEN },
-                            { label: 'Kısmi Kabul', value: sPartial, color: PURPLE },
-                            { label: 'Beklenen', value: sExpected, color: ORANGE },
-                            { label: 'Reddedilen', value: sRejected, color: RED },
-                        ]} />
+                        <View style={{ alignItems: 'center' }}>
+                            <PieChart
+                                data={[
+                                    { name: 'Kabul', population: sAccepted, color: GREEN, legendFontColor: '#333', legendFontSize: 12 },
+                                    { name: 'Kısmi', population: sPartial, color: PURPLE, legendFontColor: '#333', legendFontSize: 12 },
+                                    { name: 'Bkl', population: sExpected, color: ORANGE, legendFontColor: '#333', legendFontSize: 12 },
+                                    { name: 'Red', population: sRejected, color: RED, legendFontColor: '#333', legendFontSize: 12 },
+                                ].filter(d => d.population > 0)}
+                                width={width - 80}
+                                height={160}
+                                chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
+                                accessor={"population"}
+                                backgroundColor={"transparent"}
+                                paddingLeft={"0"}
+                                center={[10, 0]}
+                                absolute
+                            />
+                        </View>
                     )}
                 </View>
 
@@ -455,10 +531,12 @@ export default function ReportsScreen() {
 const s = StyleSheet.create({
     root: { flex: 1, backgroundColor: '#F7F8FA' },
     hero: { backgroundColor: GREEN, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, shadowColor: GREEN, shadowOpacity: 0.25, shadowRadius: 15, elevation: 8, zIndex: 10 },
-    heroTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
-    heroTitle: { fontSize: 24, fontWeight: '900', color: 'white', letterSpacing: -0.5 },
+    heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
+    heroTitle: { fontSize: 22, fontWeight: '900', color: 'white', letterSpacing: -0.5 },
     heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '500' },
     heroIconWrap: { width: 52, height: 52, borderRadius: 18, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 2 },
+    shareBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.92)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 },
+    shareBtnText: { fontSize: 12, fontWeight: '700', color: GREEN },
 
     content: { padding: 16, marginTop: -8 },
 

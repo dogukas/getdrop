@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobileapp",
+    "name": "GetDrop",
     "slug": "mobileapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -19,13 +19,25 @@
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "ycom.dogukansue.getdrop"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1a051233-b025-4200-9111-8b40ffdcf9cd"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1a051233-b025-4200-9111-8b40ffdcf9cd"
+    }
   }
 }

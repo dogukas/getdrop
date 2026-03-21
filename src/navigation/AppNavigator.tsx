@@ -8,6 +8,7 @@ import {
     createNavigationContainerRef,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+// import * as Notifications from 'expo-notifications';
 
 import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -44,31 +45,34 @@ export { navRef };
 /* ── Hamburger Butonu ──────────────────────────────────── */
 function HamburgerButton() {
     const { isOpen, toggleSidebar } = useSidebar();
-    const rot = useRef(new Animated.Value(0)).current;
-    const mid = useRef(new Animated.Value(1)).current;
+    const rot = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+    const mid = useRef(new Animated.Value(isOpen ? 0 : 1)).current;
 
-    const toggle = () => {
-        const to = !isOpen;
+    useEffect(() => {
         Animated.parallel([
-            Animated.timing(rot, { toValue: to ? 1 : 0, duration: 220, useNativeDriver: true }),
-            Animated.timing(mid, { toValue: to ? 0 : 1, duration: 180, useNativeDriver: true }),
+            Animated.timing(rot, { toValue: isOpen ? 1 : 0, duration: 220, useNativeDriver: true }),
+            Animated.timing(mid, { toValue: isOpen ? 0 : 1, duration: 180, useNativeDriver: true }),
         ]).start();
-        toggleSidebar();
-    };
+    }, [isOpen]);
 
     const r1 = rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
     const r3 = rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-45deg'] });
+
+    // Çapraz (X) şeklini tam ortalayabilmek için Y ekseninde kaydırma
+    const tY1 = rot.interpolate({ inputRange: [0, 1], outputRange: [0, 7] });
+    const tY3 = rot.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });
+
     const LINE = { width: 22, height: 2, backgroundColor: '#1A1A1A', borderRadius: 2 };
 
     return (
-        <TouchableOpacity onPress={toggle} style={hb.btn} activeOpacity={0.7}>
-            <Animated.View style={[LINE, { transform: [{ rotate: r1 }], marginBottom: -2 }]} />
+        <TouchableOpacity onPress={toggleSidebar} style={hb.btn} activeOpacity={0.7}>
+            <Animated.View style={[LINE, { transform: [{ translateY: tY1 }, { rotate: r1 }] }]} />
             <Animated.View style={[LINE, { opacity: mid }]} />
-            <Animated.View style={[LINE, { transform: [{ rotate: r3 }], marginTop: -2 }]} />
+            <Animated.View style={[LINE, { transform: [{ translateY: tY3 }, { rotate: r3 }] }]} />
         </TouchableOpacity>
     );
 }
-const hb = StyleSheet.create({ btn: { paddingHorizontal: 16, paddingVertical: 10, gap: 5 } });
+const hb = StyleSheet.create({ btn: { paddingHorizontal: 16, paddingVertical: 10, gap: 5, justifyContent: 'center' } });
 
 /* ── Main App Layout (Sidebar + Stack) ─────────────────── */
 function MainAppLayout({
@@ -204,7 +208,7 @@ export default function AppNavigator() {
         checkOnboarding();
     }, []);
 
-    // ── Realtime Listener ──
+    // ── Realtime Listener & Notifications Listener ──
     useEffect(() => {
         if (isAuthenticated && activeBranch) {
             subscribeToRealtimeChanges(activeBranch.id);
@@ -212,8 +216,25 @@ export default function AppNavigator() {
             unsubscribeRealtimeChanges();
         }
 
+        // Bildirime tıklandığında (Deep Linking yönlendirme)
+        let responseListener: any = null; // Notifications.Subscription | null = null;
+        try {
+            /*responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+                const data = response.notification.request.content.data;
+                if (data?.screen && navRef.isReady()) {
+                    // Eğer data içerisinde extra obje varsa (örn: id: '123') bunu route parametresi olarak geçelim
+                    const screenName = data.screen as string;
+                    (navRef as any).navigate(screenName, data);
+                    setCurrentRoute(screenName);
+                }
+            });*/
+        } catch (e) {
+            console.warn("Notifications deep link err. Using Expo Go? ", e);
+        }
+
         return () => {
             unsubscribeRealtimeChanges();
+            if (responseListener) responseListener.remove();
         };
     }, [isAuthenticated, activeBranch]);
 

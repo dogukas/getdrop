@@ -22,6 +22,7 @@ export interface ProfileRow {
     email: string;
     role: UserRole;
     branch_id: string | null;
+    push_token: string | null;
     created_at: string;
 }
 

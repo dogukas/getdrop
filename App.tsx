@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Image, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, Image, StyleSheet, Dimensions, Animated, LogBox } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+LogBox.ignoreLogs(['[Reanimated]']); // Reanimated mismatch logs vs.
 import { PaperProvider } from 'react-native-paper';
 import { useAppStore } from './src/store/useAppStore';
 import { lightTheme, darkTheme } from './src/theme';
@@ -8,6 +11,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/context/ToastContext';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import * as SplashScreen from 'expo-splash-screen';
+// import * as Notifications from 'expo-notifications';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -38,6 +42,20 @@ export default function App() {
     }
 
     prepare();
+
+    // Foreground notification listener
+    let subscription: any = null; // Notifications.Subscription | null = null;
+    try {
+      /*subscription = Notifications.addNotificationReceivedListener(notification => {
+        console.log('Foreground notification received:', notification);
+      });*/
+    } catch (e) {
+      console.warn("Foreground notification listener err: ", e);
+    }
+
+    return () => {
+      if (subscription) subscription.remove();
+    };
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
@@ -59,17 +77,19 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <ToastProvider>
-          <PaperProvider theme={theme}>
-            <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-              <AppNavigator />
-            </View>
-          </PaperProvider>
-        </ToastProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <ToastProvider>
+            <PaperProvider theme={theme}>
+              <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                <AppNavigator />
+              </View>
+            </PaperProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 
