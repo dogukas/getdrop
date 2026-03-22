@@ -96,8 +96,18 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     // ── Transfer Aksiyonları ────────────────────────────────
     updateTransferStatus: async (id, status) => {
+        // 1. Optimistic: UI'yı hemen güncelle
         set(s => ({ transfers: s.transfers.map(t => t.id === id ? { ...t, status } : t) }));
+        // 2. Supabase'e kaydet (hata fırlatırsa üstteki catch yakalar)
         await transferService.updateTransferStatus(id, status);
+        // 3. Kaydedilen gerçek durumu doğrula (trigger geri çekmiş olabilir)
+        const saved = await transferService.fetchSingleTransfer(id);
+        if (saved) {
+            set(s => ({ transfers: s.transfers.map(t => t.id === id ? { ...t, status: saved.status } : t) }));
+            if (saved.status !== status) {
+                throw new Error(`Supabase status mismatch: expected "${status}", got "${saved.status}". Trigger may have rejected the update.`);
+            }
+        }
     },
 
     // ── Sevkiyat Aksiyonları ────────────────────────────────

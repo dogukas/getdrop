@@ -29,22 +29,28 @@ export async function fetchTransfers(): Promise<Transfer[]> {
 }
 
 export async function updateTransferStatus(id: string, status: TransferStatus): Promise<void> {
-    // supabase as any: Database tipi 'status' alanını Update'de tanımamış olabilir
     const { error } = await (supabase as any)
         .from('transfers')
         .update({ status })
         .eq('id', id);
+
     if (error) {
-        // Push notification trigger'ından gelen hatalar (push token bulunamadı vs.)
-        // asıl update başarılı olduğu için yoksay, sadece gerçek RLS/data hatalarını fırlat
-        const msg: string = (error as any).message ?? '';
-        const isNotifError =
-            msg.toLowerCase().includes('push') ||
-            msg.toLowerCase().includes('token') ||
-            msg.toLowerCase().includes('notification') ||
-            msg.toLowerCase().includes('expo') ||
-            (error as any).code === 'P0001'; // PL/pgSQL RAISE exception (trigger hatası)
-        if (!isNotifError) throw error;
-        console.warn('[TransferService] Notification trigger error (non-fatal):', error);
+        // Tüm hataları logla ve fırlat — hiçbir hatayı gizleme
+        console.error('[TransferService] updateTransferStatus error:', JSON.stringify(error));
+        throw new Error(error.message || error.error_description || `Supabase error code: ${error.code}`);
     }
+}
+
+/**
+ * Transfer'in güncel durumunu Supabase'den tek seferlik çek.
+ * Update sonrası doğrulama için kullanılır.
+ */
+export async function fetchSingleTransfer(id: string): Promise<Transfer | null> {
+    const { data, error } = await supabase
+        .from('transfers')
+        .select('*, transfer_items(*)')
+        .eq('id', id)
+        .single();
+    if (error || !data) return null;
+    return toTransfer(data as any, (data as any).transfer_items ?? []);
 }
