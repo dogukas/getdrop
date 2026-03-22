@@ -9,6 +9,7 @@ import { SkeletonList } from '../../components/SkeletonLoader';
 import { EmptyState } from '../../components/EmptyState';
 import { useDebounce } from '../../hooks/useDebounce';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../theme/useTheme';
 
 const PURPLE = '#6C63FF';
 
@@ -30,6 +31,7 @@ const FILTERS: { key: TransferStatus | 'all'; label: string }[] = [
 type Props = NativeStackScreenProps<any, 'Transfer'>;
 
 export default function TransferScreen({ navigation }: Props) {
+    const theme = useTheme();
     const transfers = useDataStore(s => s.transfers);
     const isLoading = useDataStore(s => s.isLoading);
     const loadTransfers = useDataStore(s => s.loadTransfers);
@@ -63,7 +65,7 @@ export default function TransferScreen({ navigation }: Props) {
     }, [transfers, activeFilter, debouncedSearch]);
 
     return (
-        <View style={s.root}>
+        <View style={[s.root, { backgroundColor: theme.bg }]}>
             {isAdmin && (
                 <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateTransfer')} activeOpacity={0.85}>
                     <Icon source="plus" size={26} color="#FFF" />
@@ -78,18 +80,18 @@ export default function TransferScreen({ navigation }: Props) {
             </View>
 
             {/* Arama */}
-            <View style={s.searchBox}>
-                <Icon source="magnify" size={20} color="#AAA" />
+            <View style={[s.searchBox, { backgroundColor: theme.card }]}>
+                <Icon source="magnify" size={20} color={theme.textMuted} />
                 <TextInput
-                    style={s.searchInput}
+                    style={[s.searchInput, { color: theme.text }]}
                     placeholder="Transfer no veya depo..."
-                    placeholderTextColor="#AAA"
+                    placeholderTextColor={theme.textMuted}
                     value={search}
                     onChangeText={setSearch}
                 />
                 {search.length > 0 && (
                     <TouchableOpacity onPress={() => setSearch('')}>
-                        <Icon source="close-circle" size={18} color="#AAA" />
+                        <Icon source="close-circle" size={18} color={theme.textMuted} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -184,6 +186,7 @@ const fc = StyleSheet.create({
 });
 
 function TransferCard({ transfer, onPress }: { transfer: Transfer; onPress: () => void }) {
+    const theme = useTheme();
     const cfg = STATUS_CONFIG[transfer.status];
     const totalQty = transfer.items.reduce((s, i) => s + i.quantity, 0);
     const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -194,7 +197,7 @@ function TransferCard({ transfer, onPress }: { transfer: Transfer; onPress: () =
                 onPress={onPress}
                 onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, tension: 200, friction: 10, useNativeDriver: true }).start()}
                 onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, tension: 200, friction: 10, useNativeDriver: true }).start()}
-                style={s.card}
+                style={[s.card, { backgroundColor: theme.card }]}
                 activeOpacity={1}
             >
                 {/* Üst */}
@@ -202,7 +205,7 @@ function TransferCard({ transfer, onPress }: { transfer: Transfer; onPress: () =
                     <View style={[s.iconBox, { backgroundColor: cfg.bg }]}>
                         <Icon source={cfg.icon} size={18} color={cfg.color} />
                     </View>
-                    <Text style={[s.cardNo, { marginLeft: 12, flex: 1 }]}>{transfer.transferNo}</Text>
+                    <Text style={[s.cardNo, { marginLeft: 12, flex: 1, color: theme.text }]}>{transfer.transferNo}</Text>
                     <View style={[s.badge, { backgroundColor: cfg.bg }]}>
                         <Text style={[s.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
                     </View>
@@ -230,17 +233,15 @@ function TransferCard({ transfer, onPress }: { transfer: Transfer; onPress: () =
                     </View>
                 </View>
 
-                <View style={s.cardDivider} />
-
-                {/* Footer */}
+                <View style={[s.cardDivider, { backgroundColor: theme.divider }]} />
                 <View style={s.cardFooter}>
                     <View style={s.footItem}>
-                        <Icon source="package-variant" size={13} color="#AAA" />
-                        <Text style={s.footText}>{transfer.items.length} kalem · {totalQty} adet</Text>
+                        <Icon source="package-variant" size={13} color={theme.textMuted} />
+                        <Text style={[s.footText, { color: theme.textMuted }]}>{transfer.items.length} kalem · {totalQty} adet</Text>
                     </View>
                     <View style={s.footItem}>
-                        <Icon source="calendar-outline" size={13} color="#AAA" />
-                        <Text style={s.footText}>{transfer.plannedDate}</Text>
+                        <Icon source="calendar-outline" size={13} color={theme.textMuted} />
+                        <Text style={[s.footText, { color: theme.textMuted }]}>{transfer.plannedDate}</Text>
                     </View>
                 </View>
 
@@ -261,22 +262,22 @@ const MemoTransferCard = memo(TransferCard, (prev, next) =>
 );
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#F4F6F8' },
+    root: { flex: 1 },
     summaryRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, gap: 8 },
     searchBox: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+        flexDirection: 'row', alignItems: 'center',
         marginHorizontal: 16, marginTop: 12, marginBottom: 8,
         borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11,
         gap: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
     },
-    searchInput: { flex: 1, fontSize: 14, color: '#333' },
+    searchInput: { flex: 1, fontSize: 14 },
     filterBar: { maxHeight: 52, marginBottom: 4 },
     resultCount: { fontSize: 12, color: '#AAA', fontWeight: '600', paddingHorizontal: 16, marginBottom: 6 },
     list: { paddingHorizontal: 16, paddingBottom: 100, gap: 10 },
-    card: { backgroundColor: '#FFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 4 },
+    card: { borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 4 },
     cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
     iconBox: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-    cardNo: { fontSize: 14, fontWeight: '800', color: '#1A1A1A' },
+    cardNo: { fontSize: 14, fontWeight: '800' },
     badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
     badgeText: { fontSize: 10.5, fontWeight: '700' },
 

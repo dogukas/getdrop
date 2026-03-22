@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useActivityStore } from '../store/useActivityStore';
 import { ActivityLog, LogLevel } from '../types/database';
 import { useAppStore } from '../store/useAppStore';
+import { useTheme } from '../theme/useTheme';
 
 type Props = NativeStackScreenProps<any, 'Notifications'>;
 
@@ -42,6 +43,7 @@ function formatTime(date: Date): string {
 }
 
 export default function NotificationsScreen({ navigation }: Props) {
+    const theme = useTheme();
     const logs = useActivityStore(s => s.logs);
     const clearLogs = useActivityStore(s => s.clearLogs);
     const setUnreadCount = useAppStore(s => s.setUnreadCount);
@@ -185,19 +187,20 @@ const fc = StyleSheet.create({
 
 /* ── Log Kartı ──────────────────────────────────────────── */
 function LogCard({ log }: { log: ActivityLog }) {
+    const theme = useTheme();
     const mc = MODULE_CONFIG[log.module] ?? { icon: 'bell-outline', color: '#888', bg: '#88888812' };
     const lc = LEVEL_CONFIG[log.level];
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     return (
-        <Animated.View style={[s.card, { transform: [{ scale: scaleAnim }] }]}>
+        <Animated.View style={[s.card, { backgroundColor: theme.card, transform: [{ scale: scaleAnim }] }]}>
             {/* Level rengi sol şerit yerine üst bölge */}
             <View style={[s.cardTop, { backgroundColor: mc.bg }]}>
                 <View style={[s.iconBox, { backgroundColor: mc.color + '20' }]}>
                     <Icon source={mc.icon} size={18} color={mc.color} />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={s.cardTitle} numberOfLines={1}>{log.title}</Text>
+                    <Text style={[s.cardTitle, { color: theme.text }]} numberOfLines={1}>{log.title}</Text>
                     <View style={s.moduleRow}>
                         <View style={[s.levelDot, { backgroundColor: lc.color }]} />
                         <Text style={s.moduleName}>{log.module}</Text>
@@ -220,7 +223,7 @@ function LogCard({ log }: { log: ActivityLog }) {
 }
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#F4F6F8' },
+    root: { flex: 1 },
     summaryBar: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, gap: 8 },
     filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, gap: 10 },
     clearBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#E05C5C12', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E05C5C25' },
@@ -234,10 +237,10 @@ const s = StyleSheet.create({
     emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
     emptyTitle: { fontSize: 16, fontWeight: '700', color: '#888' },
     emptySub: { fontSize: 13, color: '#BBB', textAlign: 'center', paddingHorizontal: 40 },
-    card: { backgroundColor: '#FFF', borderRadius: 18, marginBottom: 10, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+    card: { borderRadius: 18, marginBottom: 10, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, paddingBottom: 12 },
     iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A1A', flex: 1 },
+    cardTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
     moduleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
     levelDot: { width: 6, height: 6, borderRadius: 3 },
     moduleName: { fontSize: 10, fontWeight: '700', color: '#AAA' },

@@ -12,6 +12,7 @@ import { EmptyState } from '../components/EmptyState';
 import BarcodeScanner from '../components/BarcodeScanner';
 import { useDebounce } from '../hooks/useDebounce';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../theme/useTheme';
 
 const GREEN = '#2A7A50';
 const RED = '#E05C5C';
@@ -44,6 +45,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 type Props = NativeStackScreenProps<any, 'Stock'>;
 
 export default function StockScreen({ navigation }: Props) {
+    const theme = useTheme();
     const products = useDataStore(s => s.products);
     const isLoading = useDataStore(s => s.isLoading);
     const loadProducts = useDataStore(s => s.loadProducts);
@@ -170,8 +172,7 @@ export default function StockScreen({ navigation }: Props) {
     };
 
     return (
-        <View style={s.root}>
-            {/* Barkod Modal */}
+        <View style={[s.root, { backgroundColor: theme.bg }]}>
             {scanning && (
                 <BarcodeScanner onClose={() => setScanning(false)} onScan={handleBarcodeScan} />
             )}
@@ -179,38 +180,35 @@ export default function StockScreen({ navigation }: Props) {
             {/* Özel Miktar Modal */}
             <Modal visible={!!customQtyProduct} transparent animationType="fade" onRequestClose={() => setCustomQtyProduct(null)}>
                 <View style={cq.overlay}>
-                    <View style={cq.modal}>
-                        <Text style={cq.title}>{customQtyProduct?.name}</Text>
-                        <Text style={cq.sub}>Mevcut stok: {customQtyProduct?.stock} {customQtyProduct?.unit}</Text>
-
+                    <View style={[cq.modal, { backgroundColor: theme.card }]}>
+                        <Text style={[cq.title, { color: theme.text }]}>{customQtyProduct?.name}</Text>
+                        <Text style={[cq.sub, { color: theme.textMuted }]}>Mevcut stok: {customQtyProduct?.stock} {customQtyProduct?.unit}</Text>
                         <View style={cq.modeRow}>
                             <TouchableOpacity
-                                style={[cq.modeBtn, customQtyMode === 'add' && { backgroundColor: GREEN }]}
+                                style={[cq.modeBtn, { backgroundColor: theme.bg2 }, customQtyMode === 'add' && { backgroundColor: GREEN }]}
                                 onPress={() => setCustomQtyMode('add')}
                             >
-                                <Text style={[cq.modeTxt, customQtyMode === 'add' && { color: '#FFF' }]}>+ Ekle</Text>
+                                <Text style={[cq.modeTxt, { color: theme.textSub }, customQtyMode === 'add' && { color: '#FFF' }]}>+ Ekle</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[cq.modeBtn, customQtyMode === 'sub' && { backgroundColor: RED }]}
+                                style={[cq.modeBtn, { backgroundColor: theme.bg2 }, customQtyMode === 'sub' && { backgroundColor: RED }]}
                                 onPress={() => setCustomQtyMode('sub')}
                             >
-                                <Text style={[cq.modeTxt, customQtyMode === 'sub' && { color: '#FFF' }]}>− Düş</Text>
+                                <Text style={[cq.modeTxt, { color: theme.textSub }, customQtyMode === 'sub' && { color: '#FFF' }]}>− Düş</Text>
                             </TouchableOpacity>
                         </View>
-
                         <TextInput
-                            style={cq.input}
+                            style={[cq.input, { backgroundColor: theme.bg2, color: theme.text }]}
                             value={customQtyValue}
                             onChangeText={setCustomQtyValue}
                             keyboardType="numeric"
                             placeholder="Miktar girin..."
-                            placeholderTextColor="#BBB"
+                            placeholderTextColor={theme.textMuted}
                             autoFocus
                         />
-
                         <View style={cq.btnRow}>
-                            <TouchableOpacity style={cq.cancelBtn} onPress={() => setCustomQtyProduct(null)}>
-                                <Text style={cq.cancelTxt}>Vazgeç</Text>
+                            <TouchableOpacity style={[cq.cancelBtn, { backgroundColor: theme.bg2 }]} onPress={() => setCustomQtyProduct(null)}>
+                                <Text style={[cq.cancelTxt, { color: theme.textSub }]}>Vazgeç</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[cq.confirmBtn, { backgroundColor: customQtyMode === 'add' ? GREEN : RED }]}
@@ -238,16 +236,16 @@ export default function StockScreen({ navigation }: Props) {
             </View>
 
             {/* Arama */}
-            <View style={s.searchBox}>
-                <Icon source="magnify" size={20} color="#AAA" />
-                <TextInput style={s.searchInput} placeholder="Ürün adı veya SKU..." placeholderTextColor="#AAA"
+            <View style={[s.searchBox, { backgroundColor: theme.card }]}>
+                <Icon source="magnify" size={20} color={theme.textMuted} />
+                <TextInput style={[s.searchInput, { color: theme.text }]} placeholder="Ürün adı veya SKU..." placeholderTextColor={theme.textMuted}
                     value={search} onChangeText={setSearch} />
                 {search.length > 0 && (
                     <TouchableOpacity onPress={() => setSearch('')}>
-                        <Icon source="close-circle" size={18} color="#AAA" />
+                        <Icon source="close-circle" size={18} color={theme.textMuted} />
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity style={s.scanBtn} onPress={() => setScanning(true)}>
+                <TouchableOpacity style={[s.scanBtn, { borderLeftColor: theme.divider }]} onPress={() => setScanning(true)}>
                     <Icon source="barcode-scan" size={20} color={GREEN} />
                 </TouchableOpacity>
             </View>
@@ -377,6 +375,7 @@ function StockCard({ product, st, pct, daysLeft, canEdit, isHighlighted, onAdjus
     onAdjust: (p: Product, d: number) => void;
     onCustomQty: (p: Product) => void;
 }) {
+    const theme = useTheme();
     const highlightAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -392,7 +391,7 @@ function StockCard({ product, st, pct, daysLeft, canEdit, isHighlighted, onAdjus
 
     const highlightBg = highlightAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: ['#FFFFFF', '#2A7A5015'],
+        outputRange: [theme.card, '#2A7A5015'],
     });
 
     return (
@@ -403,8 +402,8 @@ function StockCard({ product, st, pct, daysLeft, canEdit, isHighlighted, onAdjus
                     <Icon source={st.icon} size={18} color={st.color} />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={s.itemName} numberOfLines={1}>{product.name}</Text>
-                    <Text style={s.itemSku}>{product.sku} · {product.unit}</Text>
+                    <Text style={[s.itemName, { color: theme.text }]} numberOfLines={1}>{product.name}</Text>
+                    <Text style={[s.itemSku, { color: theme.textMuted }]}>{product.sku} · {product.unit}</Text>
                 </View>
                 <View style={[s.badge, { backgroundColor: st.color + '18' }]}>
                     <Text style={[s.badgeText, { color: st.color }]}>{st.label}</Text>
@@ -412,7 +411,7 @@ function StockCard({ product, st, pct, daysLeft, canEdit, isHighlighted, onAdjus
             </View>
 
             {/* Progress bar */}
-            <View style={s.barBg}>
+            <View style={[s.barBg, { backgroundColor: theme.divider }]}>
                 <View style={[s.barFill, { width: `${pct * 100}%`, backgroundColor: st.color }]} />
             </View>
 
@@ -421,9 +420,9 @@ function StockCard({ product, st, pct, daysLeft, canEdit, isHighlighted, onAdjus
                 <View>
                     <Text style={s.stockNum}>
                         <Text style={{ color: st.color, fontWeight: '800', fontSize: 18 }}>{product.stock}</Text>
-                        <Text style={s.stockUnit}> {product.unit}</Text>
+                        <Text style={[s.stockUnit, { color: theme.textMuted }]}> {product.unit}</Text>
                     </Text>
-                    <Text style={s.minText}>Min: {product.minStock} {product.unit}</Text>
+                    <Text style={[s.minText, { color: theme.textMuted }]}>Min: {product.minStock} {product.unit}</Text>
                     {/* AI Tahmin */}
                     {daysLeft !== null && (
                         <View style={[s.aiBadge, { backgroundColor: daysLeft < 7 ? '#E05C5C15' : daysLeft < 14 ? '#E8A02015' : '#2A7A5015' }]}>
@@ -477,16 +476,16 @@ const cq = StyleSheet.create({
 });
 
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#F4F6F8' },
+    root: { flex: 1 },
     summaryRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 14, gap: 8 },
     searchBox: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+        flexDirection: 'row', alignItems: 'center',
         marginHorizontal: 16, marginTop: 12, marginBottom: 8,
         borderRadius: 16, paddingHorizontal: 14, paddingVertical: 11,
         gap: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
     },
-    searchInput: { flex: 1, fontSize: 14, color: '#333' },
-    scanBtn: { padding: 4, marginLeft: 2, borderLeftWidth: 1, borderLeftColor: '#EAEAEA', paddingLeft: 10 },
+    searchInput: { flex: 1, fontSize: 14 },
+    scanBtn: { padding: 4, marginLeft: 2, borderLeftWidth: 1, paddingLeft: 10 },
     filterBar: { maxHeight: 52, marginBottom: 4 },
     resultCount: { fontSize: 12, color: '#AAA', fontWeight: '600', paddingHorizontal: 16, marginBottom: 6 },
     list: { paddingHorizontal: 16, paddingBottom: 100, gap: 10 },

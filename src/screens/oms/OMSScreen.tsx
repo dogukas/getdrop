@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { useDebounce } from '../../hooks/useDebounce';
 import SwipeableItem from '../../components/SwipeableItem';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../../theme/useTheme';
 
 const GREEN = '#2A7A50';
 const URGENT_HOURS = 24; // 24 saatten eski pending siparişler kırmızı
@@ -56,6 +57,7 @@ function urgencySort(a: Order, b: Order): number {
 type Props = NativeStackScreenProps<any, 'OMS'>;
 
 export default function OMSScreen({ navigation }: Props) {
+    const theme = useTheme();
     const orders = useDataStore(s => s.orders);
     const isLoading = useDataStore(s => s.isLoading);
     const loadOrders = useDataStore(s => s.loadOrders);
@@ -93,8 +95,8 @@ export default function OMSScreen({ navigation }: Props) {
     }, [orders, activeFilter, debouncedSearch]);
 
     return (
-        <View style={s.root}>
-            <StatusBar barStyle="dark-content" backgroundColor="#F4F6F8" />
+        <View style={[s.root, { backgroundColor: theme.bg }]}>
+            <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bg} />
 
             {/* Admin FAB */}
             {isAdmin && (
@@ -117,18 +119,18 @@ export default function OMSScreen({ navigation }: Props) {
             </View>
 
             {/* Arama */}
-            <View style={s.searchBox}>
-                <Icon source="magnify" size={20} color="#AAA" />
+            <View style={[s.searchBox, { backgroundColor: theme.card }]}>
+                <Icon source="magnify" size={20} color={theme.textMuted} />
                 <TextInput
-                    style={s.searchInput}
+                    style={[s.searchInput, { color: theme.text }]}
                     placeholder="Sipariş no veya müşteri..."
-                    placeholderTextColor="#AAA"
+                    placeholderTextColor={theme.textMuted}
                     value={search}
                     onChangeText={setSearch}
                 />
                 {search.length > 0 && (
                     <TouchableOpacity onPress={() => setSearch('')}>
-                        <Icon source="close-circle" size={18} color="#AAA" />
+                        <Icon source="close-circle" size={18} color={theme.textMuted} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -272,6 +274,7 @@ const fc = StyleSheet.create({
 
 /* ── Sipariş Kartı ──────────────────────────────────────── */
 function OrderCard({ order, isUrgent, onPress }: { order: Order; isUrgent: boolean; onPress: () => void }) {
+    const theme = useTheme();
     const cfg = STATUS_CONFIG[order.status];
     const total = order.items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
     const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -319,45 +322,39 @@ function OrderCard({ order, isUrgent, onPress }: { order: Order; isUrgent: boole
                 >
                     <Animated.View style={[
                         s.card,
+                        { backgroundColor: theme.card },
                         isUrgent && { borderWidth: 1.5, borderColor: urgentBorderColor }
                     ]}>
-                        {/* Urgency şerit */}
                         {isUrgent && (
                             <View style={s.urgentStrip}>
                                 <Icon source="alert-circle-outline" size={11} color="#FFF" />
                                 <Text style={s.urgentText}>+24 saat bekliyor</Text>
                             </View>
                         )}
-
-                        {/* Üst satır */}
                         <View style={s.cardRow}>
                             <View style={[s.iconBox, { backgroundColor: cfg.bg }]}>
                                 <Icon source={cfg.icon} size={18} color={cfg.color} />
                             </View>
                             <View style={{ flex: 1, marginLeft: 12 }}>
-                                <Text style={s.cardOrderNo}>{order.orderNo}</Text>
-                                <Text style={s.cardCustomer} numberOfLines={1}>{order.customer}</Text>
+                                <Text style={[s.cardOrderNo, { color: theme.text }]}>{order.orderNo}</Text>
+                                <Text style={[s.cardCustomer, { color: theme.textMuted }]} numberOfLines={1}>{order.customer}</Text>
                             </View>
                             <View style={[s.badge, { backgroundColor: cfg.bg }]}>
                                 <Text style={[s.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
                             </View>
                         </View>
-
-                        <View style={s.cardDivider} />
-
-                        {/* Alt satır */}
+                        <View style={[s.cardDivider, { backgroundColor: theme.divider }]} />
                         <View style={s.cardFooter}>
                             <View style={s.footerItem}>
-                                <Icon source="package-variant" size={13} color="#AAA" />
-                                <Text style={s.footerText}>{order.items.length} kalem</Text>
+                                <Icon source="package-variant" size={13} color={theme.textMuted} />
+                                <Text style={[s.footerText, { color: theme.textMuted }]}>{order.items.length} kalem</Text>
                             </View>
                             <View style={s.footerItem}>
-                                <Icon source="calendar-outline" size={13} color="#AAA" />
-                                <Text style={s.footerText}>{order.date}</Text>
+                                <Icon source="calendar-outline" size={13} color={theme.textMuted} />
+                                <Text style={[s.footerText, { color: theme.textMuted }]}>{order.date}</Text>
                             </View>
-                            <Text style={s.totalText}>₺{total.toLocaleString('tr-TR')}</Text>
+                            <Text style={[s.totalText, { color: theme.text }]}>₺{total.toLocaleString('tr-TR')}</Text>
                         </View>
-
                         {order.notes && (
                             <View style={s.noteRow}>
                                 <Icon source="information-outline" size={12} color="#2A7A50" />
@@ -396,7 +393,7 @@ const s = StyleSheet.create({
     list: { paddingHorizontal: 16, paddingBottom: 100, gap: 10 },
 
     card: {
-        backgroundColor: '#FFF', borderRadius: 20, padding: 16,
+        borderRadius: 20, padding: 16,
         shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, elevation: 4,
         overflow: 'hidden',
     },
@@ -408,15 +405,15 @@ const s = StyleSheet.create({
     urgentText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
     cardRow: { flexDirection: 'row', alignItems: 'center' },
     iconBox: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-    cardOrderNo: { fontSize: 14, fontWeight: '800', color: '#1A1A1A' },
-    cardCustomer: { fontSize: 12, color: '#999', marginTop: 1 },
+    cardOrderNo: { fontSize: 14, fontWeight: '800' },
+    cardCustomer: { fontSize: 12, marginTop: 1 },
     badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
     badgeText: { fontSize: 10.5, fontWeight: '700' },
-    cardDivider: { height: 1, backgroundColor: '#F5F5F5', marginVertical: 12 },
+    cardDivider: { height: 1, marginVertical: 12 },
     cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     footerItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    footerText: { fontSize: 11.5, color: '#AAA' },
-    totalText: { marginLeft: 'auto', fontSize: 15, fontWeight: '800', color: '#1A1A1A' },
+    footerText: { fontSize: 11.5 },
+    totalText: { marginLeft: 'auto', fontSize: 15, fontWeight: '800' },
     noteRow: {
         flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
         backgroundColor: '#2A7A5010', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,

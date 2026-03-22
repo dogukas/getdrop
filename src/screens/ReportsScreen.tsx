@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import { useDataStore } from '../store/useDataStore';
 import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
+import { useTheme } from '../theme/useTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -106,11 +107,12 @@ const db = StyleSheet.create({
 function KpiCard({ icon, label, value, sub, color, trend }: {
     icon: string; label: string; value: string | number; sub: string; color: string; trend: 'up' | 'down' | 'same';
 }) {
+    const theme = useTheme();
     const trendIcon = trend === 'up' ? 'trending-up' : trend === 'down' ? 'trending-down' : 'minus';
     const trendColor = trend === 'up' ? '#2A7A50' : trend === 'down' ? '#E05C5C' : '#888';
 
     return (
-        <View style={kc.card}>
+        <View style={[kc.card, { backgroundColor: theme.card, borderColor: theme.divider }]}>
             <View style={kc.topRow}>
                 <View style={[kc.iconBox, { backgroundColor: `${color}15` }]}>
                     <Icon source={icon} size={18} color={color} />
@@ -119,26 +121,24 @@ function KpiCard({ icon, label, value, sub, color, trend }: {
                     <Icon source={trendIcon} size={12} color={trendColor} />
                 </View>
             </View>
-            <Text style={kc.value}>{value}</Text>
-            <Text style={kc.label}>{label}</Text>
+            <Text style={[kc.value, { color: theme.text }]}>{value}</Text>
+            <Text style={[kc.label, { color: theme.textMuted }]}>{label}</Text>
 
-            <View style={kc.divider} />
-            <Text style={kc.sub}>{sub}</Text>
-
-            {/* Border glow efekti için absolute çizgi */}
+            <View style={[kc.divider, { backgroundColor: theme.divider }]} />
+            <Text style={[kc.sub, { color: theme.textMuted }]}>{sub}</Text>
             <View style={[kc.bottomLine, { backgroundColor: color }]} />
         </View>
     );
 }
 const kc = StyleSheet.create({
-    card: { flex: 1, backgroundColor: '#FFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 4, position: 'relative', overflow: 'hidden', borderWidth: 1, borderColor: '#F0F0F0' },
+    card: { flex: 1, borderRadius: 20, padding: 16, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 4, position: 'relative', overflow: 'hidden', borderWidth: 1 },
     topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 },
     iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     trendBadge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    value: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', letterSpacing: -0.5 },
-    label: { fontSize: 12, color: '#888', fontWeight: '700', marginTop: 4 },
-    divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 12 },
-    sub: { fontSize: 11, color: '#AAA', fontWeight: '600' },
+    value: { fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+    label: { fontSize: 12, fontWeight: '700', marginTop: 4 },
+    divider: { height: 1, marginVertical: 12 },
+    sub: { fontSize: 11, fontWeight: '600' },
     bottomLine: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3 },
 });
 
@@ -201,6 +201,7 @@ const pr = StyleSheet.create({
 
 // ─── Ana Ekran ─────────────────────────────────────────────────────────────────
 export default function ReportsScreen() {
+    const theme = useTheme();
     const [period, setPeriod] = useState<Period>('month');
 
     const activeBranch = useAppStore(s => s.activeBranch);
@@ -288,7 +289,7 @@ export default function ReportsScreen() {
     };
 
     return (
-        <ScrollView style={s.root} showsVerticalScrollIndicator={false}>
+        <ScrollView style={[s.root, { backgroundColor: theme.bg }]} showsVerticalScrollIndicator={false}>
             {/* Hero Header */}
             <View style={s.hero}>
                 <View style={s.heroTitleRow}>
@@ -308,7 +309,7 @@ export default function ReportsScreen() {
 
             <View style={s.content}>
                 {/* ── Operasyon KPI Özeti ─────────────────────────────── */}
-                <Text style={s.section}>Operasyon Özeti</Text>
+                <Text style={[s.section, { color: theme.text }]}>Operasyon Özeti</Text>
                 <View style={s.kpiRow}>
                     <KpiCard
                         icon="clipboard-list-outline"
@@ -347,8 +348,8 @@ export default function ReportsScreen() {
                 </View>
 
                 {/* ── Sipariş Durum Dağılımı ──────────────────────────── */}
-                <Text style={[s.section, { marginTop: 24 }]}>Sipariş Dağılımı</Text>
-                <View style={s.chartCard}>
+                <Text style={[s.section, { marginTop: 24, color: theme.text }]}>Sipariş Dağılımı</Text>
+                <View style={[s.chartCard, { backgroundColor: theme.card, borderColor: theme.divider }]}>
                     {oTotal === 0 ? (
                         <Text style={s.empty}>Bu dönemde sipariş bulunmuyor</Text>
                     ) : (
@@ -529,7 +530,7 @@ export default function ReportsScreen() {
 
 // ─── Stiller ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#F7F8FA' },
+    root: { flex: 1 },
     hero: { backgroundColor: GREEN, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, shadowColor: GREEN, shadowOpacity: 0.25, shadowRadius: 15, elevation: 8, zIndex: 10 },
     heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
     heroTitle: { fontSize: 22, fontWeight: '900', color: 'white', letterSpacing: -0.5 },
@@ -543,7 +544,7 @@ const s = StyleSheet.create({
     section: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 14, marginLeft: 6, letterSpacing: -0.2 },
     kpiRow: { flexDirection: 'row', gap: 12 },
 
-    chartCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 20, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F0F0F0' },
+    chartCard: { borderRadius: 24, padding: 20, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1 },
     chartLegend: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingHorizontal: 4 },
     legendDot: { width: 10, height: 10, borderRadius: 5 },
     legendText: { fontSize: 12, color: '#888', fontWeight: '500' },
