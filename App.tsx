@@ -12,7 +12,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/context/ToastContext';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import * as SplashScreen from 'expo-splash-screen';
-// import * as Notifications from 'expo-notifications';
+import { setupNotificationListeners } from './src/utils/notifications';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -85,18 +85,11 @@ export default function App() {
 
     prepare();
 
-    // Foreground notification listener
-    let subscription: any = null; // Notifications.Subscription | null = null;
-    try {
-      /*subscription = Notifications.addNotificationReceivedListener(notification => {
-        console.log('Foreground notification received:', notification);
-      });*/
-    } catch (e) {
-      console.warn("Foreground notification listener err: ", e);
-    }
+    // Bildirim listener'larını kur
+    const unsubNotifications = setupNotificationListeners();
 
     return () => {
-      if (subscription) subscription.remove();
+      unsubNotifications();
     };
   }, []);
 
