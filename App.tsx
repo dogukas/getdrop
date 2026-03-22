@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Image, StyleSheet, Dimensions, Animated, LogBox, Appearance, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as Updates from 'expo-updates';
 
 LogBox.ignoreLogs(['[Reanimated]']); // Reanimated mismatch logs vs.
 import { PaperProvider } from 'react-native-paper';
@@ -15,6 +16,25 @@ import * as SplashScreen from 'expo-splash-screen';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+/* ── OTA Güncelleme Hook ───────────────────────────────────────────
+ * Uygulama açılışında güncelleme kontrolü yapar.
+ * Güncelleme varsa indirir ve hemen uygulayıp yeniden başlatır.
+ * Expo Go / dev modda skip eder (sadece production APK'da çalışır).
+ */
+async function checkForOTAUpdate() {
+  try {
+    if (!Updates.isEmbeddedLaunch) return; // dev mod’da geç
+    const check = await Updates.checkForUpdateAsync();
+    if (check.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync(); // Hemen yeniden başlat
+    }
+  } catch (e) {
+    // Güncelleme başarısız olursa mevcut sürümle devam et
+    console.warn('[OTA] Güncelleme kontrolü başarısız:', e);
+  }
+}
 
 export default function App() {
   const isDarkMode = useAppStore(s => s.isDarkMode);
@@ -47,11 +67,12 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
+        // OTA güncelleme kontrolü — varsa indir ve yeniden başlat
+        await checkForOTAUpdate();
         await new Promise(resolve => setTimeout(resolve, 2000)); // Logoyu 2 saniye göster
       } catch (e) {
         console.warn(e);
       } finally {
-        // Animasyonlu çıkış
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 400,
