@@ -51,6 +51,18 @@ export default function TransferDetailScreen({ route }: Props) {
                     setLoading(true);
                     try {
                         await updateTransferStatus(transfer.id, newStatus);
+                        showToast({
+                            message: action === 'approve' ? '🚚 Transfer onaylandı!' : '❌ Transfer reddedildi.',
+                            type: action === 'approve' ? 'success' : 'error',
+                        });
+                    } catch (e: any) {
+                        console.error('[TransferDetail] handleAction error:', e);
+                        const msg = e?.message || e?.error_description || JSON.stringify(e);
+                        showToast({ message: `İşlem başarısız: ${msg}`, type: 'error' });
+                        setLoading(false);
+                        return;
+                    }
+                    try {
                         await addLog({
                             level: action === 'approve' ? 'info' : 'error',
                             title: action === 'approve' ? `Transfer Onaylandı: ${transfer.transferNo}` : `Transfer Reddedildi: ${transfer.transferNo}`,
@@ -62,12 +74,8 @@ export default function TransferDetailScreen({ route }: Props) {
                             entityNo: transfer.transferNo,
                             user: user?.name,
                         });
-                        showToast({
-                            message: action === 'approve' ? '🚚 Transfer onaylandı!' : '❌ Transfer reddedildi.',
-                            type: action === 'approve' ? 'success' : 'error',
-                        });
-                    } catch (e) {
-                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } catch (logErr) {
+                        console.warn('[TransferDetail] addLog error (non-fatal):', logErr);
                     } finally {
                         setLoading(false);
                     }
@@ -85,6 +93,15 @@ export default function TransferDetailScreen({ route }: Props) {
                     setLoading(true);
                     try {
                         await updateTransferStatus(transfer.id, 'delivered');
+                        showToast({ message: '✅ Transfer başarıyla teslim alındı.', type: 'success' });
+                    } catch (e: any) {
+                        console.error('[TransferDetail] markDelivered error:', e);
+                        const errMsg = e?.message || e?.error_description || JSON.stringify(e);
+                        showToast({ message: `İşlem başarısız: ${errMsg}`, type: 'error' });
+                        setLoading(false);
+                        return;
+                    }
+                    try {
                         await addLog({
                             level: 'success',
                             title: `Transfer Teslim: ${transfer.transferNo}`,
@@ -94,9 +111,8 @@ export default function TransferDetailScreen({ route }: Props) {
                             entityNo: transfer.transferNo,
                             user: user?.name,
                         });
-                        showToast({ message: '✅ Transfer başarıyla teslim alındı.', type: 'success' });
-                    } catch (e) {
-                        showToast({ message: 'İşlem başarısız.', type: 'error' });
+                    } catch (logErr) {
+                        console.warn('[TransferDetail] addLog error (non-fatal):', logErr);
                     } finally {
                         setLoading(false);
                     }
