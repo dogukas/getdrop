@@ -21,6 +21,10 @@ function toOrder(row: OrderRow, items: OrderItemRow[]): Order {
         status: row.status,
         date: row.date,
         notes: row.notes ?? undefined,
+        platformSource: row.platform_source ?? 'manual',
+        platformOrderNo: row.platform_order_no ?? undefined,
+        cargoCompany: row.cargo_company ?? undefined,
+        cargoTrackingNo: row.cargo_tracking_no ?? undefined,
         items: items.map(toOrderItem),
     };
 }
@@ -37,7 +41,7 @@ export async function fetchOrders(): Promise<Order[]> {
 }
 
 export async function updateOrderStatus(id: string, status: OrderStatus): Promise<void> {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
         .from('orders')
         .update({ status })
         .eq('id', id);
@@ -56,13 +60,13 @@ export async function completeOrder(id: string): Promise<void> {
     if (error) throw error;
 
     for (const item of items ?? []) {
-        const { data: product } = await supabase
+        const { data: product } = await (supabase as any)
             .from('products')
             .select('id, stock')
             .eq('sku', item.sku)
             .single();
         if (product) {
-            await supabase
+            await (supabase as any)
                 .from('products')
                 .update({ stock: Math.max(0, product.stock - item.quantity) })
                 .eq('id', product.id);

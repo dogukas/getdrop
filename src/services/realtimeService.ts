@@ -148,6 +148,10 @@ function mapOrder(r: any) {
         status: r.status,
         date: r.date,
         notes: r.notes ?? undefined,
+        platformSource: r.platform_source ?? 'manual',
+        platformOrderNo: r.platform_order_no ?? undefined,
+        cargoCompany: r.cargo_company ?? undefined,
+        cargoTrackingNo: r.cargo_tracking_no ?? undefined,
         items: [],
     };
 }

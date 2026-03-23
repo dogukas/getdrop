@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
-import { Text, List, Divider, Switch, Icon } from 'react-native-paper';
+import { Text, List, Divider, Switch, Icon, TextInput } from 'react-native-paper';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +46,48 @@ export default function SettingsScreen() {
     const [soundEnabled, setSoundEnabled] = useState(true);
     const [connTesting, setConnTesting] = useState(false);
     const [showChangelog, setShowChangelog] = useState(false);
+    const isAdmin = user?.role === 'admin';
+
+    // Trendyol Integration States
+    const [trendyolSellerId, setTrendyolSellerId] = useState('');
+    const [trendyolApiKey, setTrendyolApiKey] = useState('');
+    const [trendyolApiSecret, setTrendyolApiSecret] = useState('');
+    const [savingTrendyol, setSavingTrendyol] = useState(false);
+
+    // Load integration settings if admin
+    useEffect(() => {
+        if (!isAdmin) return;
+        const loadSettings = async () => {
+            const { data } = await (supabase as any).from('integration_settings').select('*').eq('platform', 'trendyol').single();
+            if (data) {
+                setTrendyolSellerId(data.seller_id ?? '');
+                setTrendyolApiKey(data.api_key ?? '');
+                setTrendyolApiSecret(data.api_secret ?? '');
+            }
+        };
+        loadSettings();
+    }, [isAdmin]);
+
+    const handleSaveTrendyol = async () => {
+        setSavingTrendyol(true);
+        try {
+            const { error } = await (supabase as any).from('integration_settings').upsert({
+                platform: 'trendyol',
+                seller_id: trendyolSellerId,
+                api_key: trendyolApiKey,
+                api_secret: trendyolApiSecret,
+                is_active: !!(trendyolSellerId && trendyolApiKey && trendyolApiSecret),
+                branch_id: activeBranch?.id
+            }, { onConflict: 'platform' });
+            
+            if (error) throw error;
+            showToast({ message: 'Trendyol ayarları kaydedildi!', type: 'success' });
+        } catch (e: any) {
+            showToast({ message: 'Hata: ' + e.message, type: 'error' });
+        } finally {
+            setSavingTrendyol(false);
+        }
+    };
 
     // Bildirim toggle state'leri
     const [notifToggles, setNotifToggles] = useState<Record<string, boolean>>({
@@ -245,6 +287,48 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* PAZAR YERİ ENTEGRASYONLARI (Admin Only) */}
+            {isAdmin && (
+                <>
+                    <Text style={[s.section, { color: theme.textMuted, marginTop: 12 }]}>TRENDYOL ENTEGRASYONU</Text>
+                    <View style={[s.card, { backgroundColor: theme.card, paddingVertical: 12 }]}>
+                        <View style={{ paddingHorizontal: 16, gap: 12 }}>
+                            <TextInput
+                                style={[s.input, { color: theme.text, borderColor: theme.divider }]}
+                                placeholder="Satıcı Kimliği (Seller ID)"
+                                placeholderTextColor={theme.textMuted}
+                                value={trendyolSellerId}
+                                onChangeText={setTrendyolSellerId}
+                            />
+                            <TextInput
+                                style={[s.input, { color: theme.text, borderColor: theme.divider }]}
+                                placeholder="API Anahtarı"
+                                placeholderTextColor={theme.textMuted}
+                                value={trendyolApiKey}
+                                onChangeText={setTrendyolApiKey}
+                                secureTextEntry
+                            />
+                            <TextInput
+                                style={[s.input, { color: theme.text, borderColor: theme.divider }]}
+                                placeholder="API Sırrı (Secret)"
+                                placeholderTextColor={theme.textMuted}
+                                value={trendyolApiSecret}
+                                onChangeText={setTrendyolApiSecret}
+                                secureTextEntry
+                            />
+                            <TouchableOpacity 
+                                style={[s.saveBtn, { backgroundColor: '#F27A1A' }]} 
+                                onPress={handleSaveTrendyol} 
+                                disabled={savingTrendyol}
+                            >
+                                <Icon source="content-save" color="#FFF" size={18} />
+                                <Text style={s.saveBtnText}>{savingTrendyol ? 'Kaydediliyor...' : 'Trendyol Bağlantısını Kaydet'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </>
+            )}
+
             {/* HAKKINDA */}
             <Text style={[s.section, { color: theme.textMuted }]}>HAKKINDA</Text>
             <View style={[s.card, { backgroundColor: theme.card }]}>
@@ -309,4 +393,7 @@ const s = StyleSheet.create({
     logoutText: { fontSize: 14, fontWeight: '700', color: '#E05C5C' },
     // Legacy
     avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16 },
+    input: { backgroundColor: 'transparent', marginVertical: 4 },
+    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, marginTop: 4 },
+    saveBtnText: { color: 'white', fontWeight: '700', fontSize: 14 }
 });

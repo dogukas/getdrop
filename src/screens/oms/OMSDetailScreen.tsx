@@ -9,8 +9,17 @@ import { useToast } from '../../context/ToastContext';
 import { useAppStore } from '../../store/useAppStore';
 import { useDataStore } from '../../store/useDataStore';
 import { useActivityStore } from '../../store/useActivityStore';
+import BarcodeScanner from '../../components/BarcodeScanner';
+import { supabase } from '../../lib/supabase';
 
 const GREEN = '#2A7A50';
+
+const PLATFORM_CONFIG: Record<string, { label: string; bg: string; color: string; icon: string }> = {
+    trendyol: { label: 'Trendyol', bg: '#F27A1A15', color: '#F27A1A', icon: 'shopping' },
+    hepsiburada: { label: 'Hepsiburada', bg: '#FF600015', color: '#FF6000', icon: 'shopping-outline' },
+    shopify: { label: 'Shopify', bg: '#96BF4815', color: '#96BF48', icon: 'storefront-outline' },
+    manual: { label: 'Manuel', bg: '#88888815', color: '#888888', icon: 'hand-back-left-outline' },
+};
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; icon: string }> = {
     pending: { label: 'Bekliyor', color: '#E8A020', icon: 'clock-outline' },
@@ -40,6 +49,8 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
     const user = useAppStore(s => s.user);
     const addLog = useActivityStore(s => s.addLog);
     const [loading, setLoading] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const loadOrders = useDataStore(s => s.loadOrders);
 
     if (!order) {
         return (
@@ -120,8 +131,41 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
         ]);
     };
 
+    const handleCargoScan = async (code: string) => {
+        setShowScanner(false);
+        setLoading(true);
+        try {
+            // 1. Kargo numarasını veritabanına kaydet
+            await (supabase as any).from('orders').update({ cargo_tracking_no: code }).eq('id', order.id);
+            
+            // 2. Siparişi tamamla (stoktan düş + status = completed)
+            await completeOrder(order.id);
+            
+            await addLog({
+                level: 'success',
+                title: `Kargo Kesildi: ${order.orderNo}`,
+                description: `Kargo barkodu (${code}) okutuldu. Sipariş tamamlandı.`,
+                module: 'OMS',
+                entityId: order.id,
+                entityNo: order.orderNo,
+                user: user?.name,
+            });
+
+            await loadOrders(); // State'i güncelle
+            showToast({ message: '✅ Kargo barkodu başarıyla işlendi ve tamamlandı!', type: 'success' });
+            
+        } catch (e) {
+            showToast({ message: 'Kargo kaydı sırasında hata oluştu.', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <View style={s.root}>
+            {showScanner && (
+                <BarcodeScanner onScan={handleCargoScan} onClose={() => setShowScanner(false)} />
+            )}
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
                 {/* Başlık Kart */}
@@ -132,7 +176,18 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
                             <Icon source={cfg.icon} size={26} color={cfg.color} />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={s.orderNo}>{order.orderNo}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                                <Text style={s.orderNo}>{order.orderNo}</Text>
+                                {/* Platform Badge */}
+                                {order.platformSource && PLATFORM_CONFIG[order.platformSource] && (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: PLATFORM_CONFIG[order.platformSource].bg, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 }}>
+                                        <Icon source={PLATFORM_CONFIG[order.platformSource].icon} size={12} color={PLATFORM_CONFIG[order.platformSource].color} />
+                                        <Text style={{ fontSize: 10, fontWeight: '700', color: PLATFORM_CONFIG[order.platformSource].color }}>
+                                            {PLATFORM_CONFIG[order.platformSource].label}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
                             <Text style={s.customer}>{order.customer}</Text>
                         </View>
                         <View style={[s.statusBadge, { backgroundColor: cfg.color + '25' }]}>
@@ -141,6 +196,8 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
                     </View>
                     <View style={s.infoGrid}>
                         <InfoItem icon="calendar-outline" label="Tarih" value={order.date} />
+                        {order.platformOrderNo && <InfoItem icon="ticket-confirmation-outline" label="Pazar Yeri No" value={order.platformOrderNo} />}
+                        {order.cargoTrackingNo && <InfoItem icon="barcode-scan" label="Kargo Takip No" value={order.cargoTrackingNo} />}
                         <InfoItem icon="map-marker-outline" label="Adres" value={order.address} />
                         {order.notes && <InfoItem icon="information-outline" label="Not" value={order.notes} />}
                     </View>
@@ -209,10 +266,17 @@ export default function OMSDetailScreen({ route, navigation }: Props) {
                         </TouchableOpacity>
                     )}
                     {order.status === 'processing' && (
-                        <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#4CAF50' }, loading && { opacity: 0.6 }]} disabled={loading} onPress={() => handleAction('complete')} activeOpacity={0.85}>
-                            <Icon source="check-circle-outline" size={18} color="white" />
-                            <Text style={s.primaryBtnText}>{loading ? 'İşleniyor...' : 'Tamamla ✓'}</Text>
-                        </TouchableOpacity>
+                        order.platformSource && order.platformSource !== 'manual' ? (
+                            <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#F27A1A' }, loading && { opacity: 0.6 }]} disabled={loading} onPress={() => setShowScanner(true)} activeOpacity={0.85}>
+                                <Icon source="barcode-scan" size={18} color="white" />
+                                <Text style={s.primaryBtnText}>{loading ? 'İşleniyor...' : 'Kargo Okut ✓'}</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#4CAF50' }, loading && { opacity: 0.6 }]} disabled={loading} onPress={() => handleAction('complete')} activeOpacity={0.85}>
+                                <Icon source="check-circle-outline" size={18} color="white" />
+                                <Text style={s.primaryBtnText}>{loading ? 'İşleniyor...' : 'Tamamla ✓'}</Text>
+                            </TouchableOpacity>
+                        )
                     )}
                     <TouchableOpacity style={[s.actionBtn, s.dangerBtn, loading && { opacity: 0.6 }]} disabled={loading} onPress={() => handleAction('cancel')} activeOpacity={0.85}>
                         <Icon source="close-circle-outline" size={18} color="#E05C5C" />

@@ -45,6 +45,10 @@ export interface OrderRow {
     status: OrderStatus;
     date: string;
     notes: string | null;
+    platform_source?: 'trendyol' | 'hepsiburada' | 'shopify' | 'manual';
+    platform_order_no?: string | null;
+    cargo_company?: string | null;
+    cargo_tracking_no?: string | null;
     branch_id: string | null;
     created_by: string | null;
     created_at: string;
@@ -157,6 +161,10 @@ export interface Order {
     date: string;
     items: OrderItem[];
     notes?: string;
+    platformSource?: 'trendyol' | 'hepsiburada' | 'shopify' | 'manual';
+    platformOrderNo?: string;
+    cargoCompany?: string;
+    cargoTrackingNo?: string;
 }
 
 export interface TransferItem {

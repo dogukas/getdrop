@@ -25,12 +25,23 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: str
     cancelled: { label: 'İptal', color: '#E05C5C', bg: '#E05C5C15', icon: 'close-circle-outline' },
 };
 
-const FILTERS: { key: OrderStatus | 'all'; label: string }[] = [
+const PLATFORM_CONFIG: Record<string, { label: string; bg: string; color: string; icon: string }> = {
+    trendyol: { label: 'Trendyol', bg: '#F27A1A15', color: '#F27A1A', icon: 'shopping' },
+    hepsiburada: { label: 'Hepsiburada', bg: '#FF600015', color: '#FF6000', icon: 'shopping-outline' },
+    shopify: { label: 'Shopify', bg: '#96BF4815', color: '#96BF48', icon: 'storefront-outline' },
+    manual: { label: 'Manuel', bg: '#88888815', color: '#888888', icon: 'hand-back-left-outline' },
+};
+
+type FilterKey = OrderStatus | 'all' | 'trendyol' | 'hepsiburada' | 'shopify' | 'manual';
+
+const FILTERS: { key: FilterKey; label: string; icon?: string }[] = [
     { key: 'all', label: 'Tümü' },
     { key: 'pending', label: 'Bekliyor' },
     { key: 'processing', label: 'İşlemde' },
     { key: 'completed', label: 'Tamamlandı' },
-    { key: 'cancelled', label: 'İptal' },
+    { key: 'trendyol', label: 'Trendyol', icon: 'shopping' },
+    { key: 'hepsiburada', label: 'Hepsiburada', icon: 'shopping-outline' },
+    { key: 'shopify', label: 'Shopify', icon: 'storefront-outline' },
 ];
 
 /** Siparişin kaç saat önce oluşturulduğunu hesaplar */
@@ -63,7 +74,7 @@ export default function OMSScreen({ navigation }: Props) {
     const loadOrders = useDataStore(s => s.loadOrders);
     const user = useAppStore(s => s.user);
     const isAdmin = user?.role === 'admin';
-    const [activeFilter, setActiveFilter] = useState<OrderStatus | 'all'>('all');
+    const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
     const [refreshing, setRefreshing] = useState(false);
@@ -73,9 +84,12 @@ export default function OMSScreen({ navigation }: Props) {
     const processing = orders.filter(o => o.status === 'processing').length;
     const completed = orders.filter(o => o.status === 'completed').length;
     const cancelled = orders.filter(o => o.status === 'cancelled').length;
+    const trendyol = orders.filter(o => o.platformSource === 'trendyol').length;
+    const hepsiburada = orders.filter(o => o.platformSource === 'hepsiburada').length;
+    const shopify = orders.filter(o => o.platformSource === 'shopify').length;
     const urgentCount = orders.filter(o => o.status === 'pending' && hoursAgo(o.date) > URGENT_HOURS).length;
 
-    const countMap: Record<string, number> = { all: orders.length, pending, processing, completed, cancelled };
+    const countMap: Record<string, number> = { all: orders.length, pending, processing, completed, cancelled, trendyol, hepsiburada, shopify };
 
     const onRefresh = async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -86,10 +100,17 @@ export default function OMSScreen({ navigation }: Props) {
 
     const filtered = useMemo(() => {
         const base = orders.filter((o: Order) => {
-            const matchStatus = activeFilter === 'all' || o.status === activeFilter;
+            let matchFilter = true;
+            if (activeFilter !== 'all') {
+                if (['trendyol', 'hepsiburada', 'shopify', 'manual'].includes(activeFilter)) {
+                    matchFilter = o.platformSource === activeFilter;
+                } else {
+                    matchFilter = o.status === activeFilter as OrderStatus;
+                }
+            }
             const matchSearch = o.orderNo.toLowerCase().includes(debouncedSearch.toLowerCase())
                 || o.customer.toLowerCase().includes(debouncedSearch.toLowerCase());
-            return matchStatus && matchSearch;
+            return matchFilter && matchSearch;
         });
         return [...base].sort(urgencySort);
     }, [orders, activeFilter, debouncedSearch]);
@@ -336,7 +357,19 @@ function OrderCard({ order, isUrgent, onPress }: { order: Order; isUrgent: boole
                                 <Icon source={cfg.icon} size={18} color={cfg.color} />
                             </View>
                             <View style={{ flex: 1, marginLeft: 12 }}>
-                                <Text style={[s.cardOrderNo, { color: theme.text }]}>{order.orderNo}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={[s.cardOrderNo, { color: theme.text }]}>{order.orderNo}</Text>
+                                    
+                                    {/* Platform Badge */}
+                                    {order.platformSource && PLATFORM_CONFIG[order.platformSource] && (
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: PLATFORM_CONFIG[order.platformSource].bg, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
+                                            <Icon source={PLATFORM_CONFIG[order.platformSource].icon} size={10} color={PLATFORM_CONFIG[order.platformSource].color} />
+                                            <Text style={{ fontSize: 9, fontWeight: '700', color: PLATFORM_CONFIG[order.platformSource].color }}>
+                                                {PLATFORM_CONFIG[order.platformSource].label}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
                                 <Text style={[s.cardCustomer, { color: theme.textMuted }]} numberOfLines={1}>{order.customer}</Text>
                             </View>
                             <View style={[s.badge, { backgroundColor: cfg.bg }]}>
